@@ -4,8 +4,10 @@ const User = require('../users/user.model');
 const AppError = require('../../common/AppError');
 const HTTP_STATUS = require('../../constants/httpStatus');
 const pagination = require('../../common/pagination');
+const {createActivityLog} = require('../activity-logs/activityLog.service');
 
-const createDepartment = async (data, userId) => {
+
+const createDepartment = async (data, user) => {
   const existing = await Department.findOne({
     code: data.code.toUpperCase(),
   });
@@ -17,8 +19,17 @@ const createDepartment = async (data, userId) => {
   const department = await Department.create({
     ...data,
     code: data.code.toUpperCase(),
-    createdBy: userId,
+    createdBy: user._id,
   });
+
+  await createActivityLog({
+    module: 'Department',
+    action: 'Create',
+    description: `Department ${department.name} created by ${user.firstName} ${user.lastName}`,
+    performedBy: user._id,
+    recordId: department._id,
+  });
+
 
   return department;
 };
@@ -34,8 +45,8 @@ const getAllDepartments = async (options = {}) => {
 
 const getDepartmentById = async (id) => {
   const dept = await Department.findById(id)
-    .populate('head')
-    .populate('createdBy');
+    .populate('head', 'firstName lastName email')
+    .populate('createdBy', 'firstName lastName email');
 
   if (!dept) {
     throw new AppError('Department not found', HTTP_STATUS.NOT_FOUND);
@@ -44,7 +55,7 @@ const getDepartmentById = async (id) => {
   return dept;
 };
 
-const updateDepartment = async (id, data) => {
+const updateDepartment = async (id, data, user) => {
   const dept = await Department.findByIdAndUpdate(
     id,
     data,
@@ -55,10 +66,18 @@ const updateDepartment = async (id, data) => {
     throw new AppError('Department not found', HTTP_STATUS.NOT_FOUND);
   }
 
+  await createActivityLog({
+    module: 'Department',
+    action: 'Update',
+    description: `Department ${dept.name} updated by ${user.firstName} ${user.lastName}`,
+    performedBy: user._id,
+    recordId: dept._id,
+  });
+
   return dept;
 };
 
-const assignHead = async (deptId, userId) => {
+const assignHead = async (deptId, userId, currentUser) => {
   // 1. Validate userId
   if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
     throw new AppError(
@@ -106,6 +125,14 @@ const assignHead = async (deptId, userId) => {
       HTTP_STATUS.NOT_FOUND
     );
   }
+
+  await createActivityLog({
+    module: 'Department',
+    action: 'Assign Head',
+    description: `Department head assigned to ${user.firstName} ${user.lastName} for department ${dept.name} by ${currentUser.firstName} ${currentUser.lastName}`,
+    performedBy: currentUser._id,
+    recordId: dept._id,
+  });
 
   return dept;
 };

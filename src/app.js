@@ -8,9 +8,7 @@ const mongoSanitize = require("./middleware/sanitizeRequest")
 const apiRoutes = require('./routes');
 const errorHandler = require('./middleware/errorHandler');
 
-
 const app = express();
-
 
 app.use(helmet());
 

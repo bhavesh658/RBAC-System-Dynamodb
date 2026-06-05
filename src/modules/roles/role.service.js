@@ -3,8 +3,9 @@ const Permission = require('../permissions/permission.model');
 const AppError = require('../../common/AppError');
 const HTTP_STATUS = require('../../constants/httpStatus');
 const pagination = require('../../common/pagination');
+const { createActivityLog } = require('../activity-logs/activityLog.service')
 
-const createRole = async (data, userId) => {
+const createRole = async (data, user) => {
   const existing = await Role.findOne({
     name: data.name,
     department: data.department,
@@ -19,7 +20,21 @@ const createRole = async (data, userId) => {
 
   const role = await Role.create({
     ...data,
-    createdBy: userId,
+    createdBy: user._id,
+  });
+
+  await createActivityLog({
+    module: 'Role',
+    action: 'Create',
+    description: `${user.firstName} ${user.lastName} created role ${role.name}`,
+    recordId: role._id,
+    metadata: {
+      newvalue: {
+        name: role.name,
+        department: role.department,
+      }
+    },
+    performedBy: user._id,
   });
 
   return role;
@@ -35,7 +50,7 @@ const getRolesByDepartment = async (departmentId, options = {}) => {
     .limit(limit);
 };
 
-const assignPermissions = async (roleId, permissionIds) => {
+const assignPermissions = async (roleId, permissionIds, user) => {
   const role = await Role.findById(roleId);
 
   if (!role) {
@@ -65,6 +80,18 @@ const assignPermissions = async (roleId, permissionIds) => {
     }
   }
 
+  await createActivityLog({
+    module: 'Role',
+    action: 'Assign Permissions',
+    description: `${user.firstName} ${user.lastName} assigned permissions to role "${role.name}"`,
+    performedBy: user._id,
+    metadata: {
+      newvalue: {
+        permissions: role.permissions,
+      }
+    }
+  })
+
   await role.save();
 
   return Role.findById(roleId)
@@ -75,10 +102,8 @@ const assignPermissions = async (roleId, permissionIds) => {
     );
 };
 
-/**
- * Remove specific permissions from role
- */
-const removePermissions = async (roleId, permissionIds) => {
+
+const removePermissions = async (roleId, permissionIds, user) => {
   const role = await Role.findById(roleId);
 
   if (!role) {
@@ -91,6 +116,18 @@ const removePermissions = async (roleId, permissionIds) => {
   );
 
   await role.save();
+
+  await createActivityLog({
+    module: 'Role',
+    action: 'Remove Permissions From Role',
+    description: `${user.firstName} ${user.lastName} removed permissions to role "${role.name}"`,
+    performedBy: user._id,
+    metadata: {
+      oldvalue: {
+        permissions: role.permissions,
+      }
+    }
+  })
 
   return Role.findById(roleId)
     .populate('department', 'name code')
@@ -119,14 +156,36 @@ const getAllRoles = async (query = {}) => {
     .sort({ name: 1 });
 };
 
-const updateRole = async (id, data) => {
-  const role = await Role.findByIdAndUpdate(id, data, {
-    new: true,
-  });
+const updateRole = async (id, data, user) => {
+  const role = await Role.findOne({ _id: id });
 
   if (!role) {
     throw new AppError('Role not found', HTTP_STATUS.NOT_FOUND);
   }
+  const oldRoleData = {
+    name: role.name,
+    department: role.department,
+  };
+  Object.assign(role, data);
+  await role.save();
+
+  await createActivityLog({
+    module: 'Role',
+    action: 'Update',
+    description: `${user.firstName} ${user.lastName} updated role "${role.name}"`,
+    recordId: role._id,
+    performedBy: user._id,
+    metadata: {
+      oldvalue: {
+        name: oldRoleData.name,
+        department: oldRoleData.department,
+      },
+      newvalue: {
+        name: data.name || role.name,
+        department: data.department || role.department,
+      }
+    }
+  });
 
   return role;
 };

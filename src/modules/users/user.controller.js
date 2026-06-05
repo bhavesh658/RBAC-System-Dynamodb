@@ -42,7 +42,8 @@ const getUserById = asyncHandler(async (req, res) => {
 const updateUser = asyncHandler(async (req, res) => {
   const user = await userService.updateUser(
     req.params.id,
-    req.body
+    req.body,
+    req.user
   );
 
   return sendResponse(
@@ -54,7 +55,9 @@ const updateUser = asyncHandler(async (req, res) => {
 });
 
 const toggleUserStatus = asyncHandler(async (req, res) => {
-  const user = await userService.toggleUserStatus(req.params.id);
+  const user = await userService.toggleUserStatus(req.params.id,
+    req.user
+  );
 
   return sendResponse(
     res,

@@ -5,7 +5,7 @@ const authService = require('./auth.service');
 const TokenBlacklist = require('./tokenBlacklist.model');
 
 const login = asyncHandler(async (req, res) => {
-  
+
   const result = await authService.loginUser(req.body);
 
   res.cookie('accessToken', result.accessToken, {
@@ -15,24 +15,36 @@ const login = asyncHandler(async (req, res) => {
     maxAge: 24 * 60 * 60 * 1000, // 1 day
   });
   res.cookie(
-      'refreshToken',
-      result.refreshToken,
-      {
-        httpOnly: true,
-        secure:
-          process.env.NODE_ENV ===
-          'production',
-        sameSite: 'strict',
-        maxAge:
-          7 * 24 * 60 * 60 * 1000,
-      }
-    );
+    'refreshToken',
+    result.refreshToken,
+    {
+      httpOnly: true,
+      secure:
+        process.env.NODE_ENV ===
+        'production',
+      sameSite: 'strict',
+      maxAge:
+        7 * 24 * 60 * 60 * 1000,
+    }
+  );
+  const userResponse = {
+    _id: result.user._id,
+    firstName: result.user.firstName,
+    lastName: result.user.lastName,
+    fullName: result.user.fullName,
+    email: result.user.email,
+    phone: result.user.phone,
+    isActive: result.user.isActive,
+    department: result.user.department,
+    role: result.user.role,
+  };
+
   return sendResponse(
     res,
     HTTP_STATUS.OK,
-    'Login successful',
+    "Login successful",
     {
-      user: result.user,
+      user: userResponse,
     }
   );
 });
@@ -52,7 +64,7 @@ const logout = asyncHandler(async (req, res) => {
     refreshToken
   );
 
-  
+
   res.clearCookie('accessToken', {
     httpOnly: true,
     secure:

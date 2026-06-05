@@ -7,7 +7,8 @@ const roleService = require('./role.service');
 const createRole = asyncHandler(async (req, res) => {
   const role = await roleService.createRole(
     req.body,
-    req.user._id
+    req.user,
+
   );
 
   return sendResponse(
@@ -34,7 +35,8 @@ const getRolesByDepartment = asyncHandler(async (req, res) => {
 const assignPermissions = asyncHandler(async (req, res) => {
   const role = await roleService.assignPermissions(
     req.params.id,
-    req.body.permissions
+    req.body.permissions,
+    req.user
   );
 
   return sendResponse(
@@ -48,7 +50,8 @@ const assignPermissions = asyncHandler(async (req, res) => {
 const removePermissions = asyncHandler(async (req, res) => {
   const role = await roleService.removePermissions(
     req.params.id,
-    req.body.permissions
+    req.body.permissions,
+    req.user
   );
 
   return sendResponse(
@@ -62,7 +65,8 @@ const removePermissions = asyncHandler(async (req, res) => {
 const updateRole = asyncHandler(async (req, res) => {
   const role = await roleService.updateRole(
     req.params.id,
-    req.body
+    req.body,
+    req.user
   );
 
   return sendResponse(

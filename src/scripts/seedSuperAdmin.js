@@ -158,6 +158,93 @@ const permissionData = [
     description: 'Assign leads to users',
     isSystemPermission: true,
   },
+  // projects Module
+  {
+    name: 'projects.create',
+    module: 'projects',
+    action: 'create',
+    description: 'Create projects',
+    isSystemPermission: true,
+  },
+
+  {
+    name: 'projects.read',
+    module: 'projects',
+    action: 'read',
+    description: 'View projects',
+    isSystemPermission: true,
+  },
+
+  {
+    name: 'projects.update',
+    module: 'projects',
+    action: 'update',
+    description: 'Update projects',
+    isSystemPermission: true,
+  },
+
+  {
+    name: 'projects.delete',
+    module: 'projects',
+    action: 'delete',
+    description: 'Delete projects',
+    isSystemPermission: true,
+  },
+
+  {
+    name: 'projects.assign',
+    module: 'projects',
+    action: 'assign',
+    description:
+      'Assign users to projects',
+    isSystemPermission: true,
+  },
+  // tasks Module
+  {
+    name: 'tasks.create',
+    module: 'tasks',
+    action: 'create',
+    description: 'Create tasks',
+    isSystemPermission: true,
+  },
+  {
+    name: 'tasks.read',
+    module: 'tasks',
+    action: 'read',
+    description: 'View tasks',
+    isSystemPermission: true,
+  },
+  {
+    name: 'tasks.update',
+    module: 'tasks',
+    action: 'update',
+    description: 'Update tasks',
+    isSystemPermission: true,
+  },
+  {
+    name: 'tasks.delete',
+    module: 'tasks',
+    action: 'delete',
+    description: 'Delete tasks',
+    isSystemPermission: true,
+  },
+  {
+    name: 'tasks.assign',
+    module: 'tasks',
+    action: 'assign',
+    description: 'Assign tasks',
+    isSystemPermission: true,
+  },
+
+  // activity logs Module
+  {
+    name: 'activitylogs.read',
+    module: 'activitylogs',
+    action: 'read',
+    description:
+      'View activity logs',
+    isSystemPermission: true,
+  }
 ];
 
 const seedSuperAdmin = async () => {
@@ -165,7 +252,7 @@ const seedSuperAdmin = async () => {
     // Connect to database
     await connectDB();
 
-   
+
     for (const permission of permissionData) {
       await Permission.findOneAndUpdate(
         { name: permission.name },
@@ -177,7 +264,7 @@ const seedSuperAdmin = async () => {
         }
       );
     }
-    
+
     logger.info('Permissions seeded successfully.');
 
     let systemDepartment = await Department.findOne({
@@ -197,7 +284,7 @@ const seedSuperAdmin = async () => {
       logger.info('System department already exists.');
     }
 
-    
+
     let superAdminRole = await Role.findOne({
       name: 'Super Admin',
       department: systemDepartment._id,
@@ -232,7 +319,7 @@ const seedSuperAdmin = async () => {
 
 
 
-   
+
     const existingUser = await User.findOne({
       email: process.env.SUPER_ADMIN_EMAIL.toLowerCase(),
     });

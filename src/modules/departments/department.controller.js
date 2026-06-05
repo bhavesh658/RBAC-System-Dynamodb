@@ -7,7 +7,7 @@ const departmentService = require('./department.service');
 const createDepartment = asyncHandler(async (req, res) => {
   const dept = await departmentService.createDepartment(
     req.body,
-    req.user._id
+    req.user
   );
 
   return sendResponse(
@@ -45,7 +45,8 @@ const getDepartmentById = asyncHandler(async (req, res) => {
 const updateDepartment = asyncHandler(async (req, res) => {
   const dept = await departmentService.updateDepartment(
     req.params.id,
-    req.body
+    req.body,
+    req.user
   );
 
   return sendResponse(
@@ -61,7 +62,8 @@ const assignHead = asyncHandler(async (req, res) => {
 
   const dept = await departmentService.assignHead(
     req.params.id,
-    userId
+    userId,
+    req.user
   );
 
   return sendResponse(

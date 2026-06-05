@@ -3,60 +3,64 @@ const Role = require('../roles/role.model');
 const User = require('../users/user.model');
 const AppError = require('../../common/AppError');
 const HTTP_STATUS = require('../../constants/httpStatus');
-const { generateAccessToken, generateRefreshToken,sendEmail } = require('./auth.utils');
+const { generateAccessToken, generateRefreshToken, sendEmail } = require('./auth.utils');
 const crypto = require('crypto');
 const TokenBlacklist = require('./tokenBlacklist.model');
 const jwt = require('jsonwebtoken');
 
-const loginUser = async ({ email, password }) => {
-
+const loginUser = async ({
+    email,
+    password,
+}) => {
     const user = await User.findOne({
         email: email.toLowerCase(),
     })
-        .select('+password')
-        .populate('department', 'name code')
-        .populate('role', 'name');
+        .select("+password")
 
     if (!user) {
         throw new AppError(
-            'Invalid email or password',
+            "Invalid email or password",
             HTTP_STATUS.UNAUTHORIZED
         );
     }
 
     if (!user.isActive) {
         throw new AppError(
-            'Your account is inactive. Please contact the administrator.',
+            "Your account is inactive. Please contact the administrator.",
             HTTP_STATUS.FORBIDDEN
         );
     }
 
-    const isPasswordValid = await user.comparePassword(password);
+    const isPasswordValid =
+        await user.comparePassword(password);
 
     if (!isPasswordValid) {
         throw new AppError(
-            'Invalid email or password',
+            "Invalid email or password",
             HTTP_STATUS.UNAUTHORIZED
         );
     }
 
-    // Update last login timestamp
-    user.lastLoginAt = new Date();
-    await user.save();
-
-    // Generate JWT
-    const accessToken = generateAccessToken(user);
-    const refreshToken = generateRefreshToken(user);
-    user.refreshToken = refreshToken;
-
-    await user.save();
-    // Remove password before returning
+    const accessToken =
+        generateAccessToken(user);
+    const refreshToken =
+        generateRefreshToken(user);
+    await User.updateOne(
+        { _id: user._id },
+        {
+            $set: {
+                lastLoginAt: new Date(),
+                refreshToken,
+            },
+        }
+    );
     user.password = undefined;
+
 
     return {
         accessToken,
-        user,
         refreshToken,
+        user,
     };
 };
 
@@ -146,9 +150,7 @@ const forgotPassword = async (email) => {
     };
 };
 
-/**
- * Reset Password
- */
+
 const resetPassword = async (
     email,
     otp,

@@ -20,13 +20,7 @@ const createUserValidation = [
     })
     .withMessage('Password must be at least 6 characters and contain uppercase, lowercase, number and symbol'),
 
-  body('department')
-    .notEmpty()
-    .withMessage('Department is required'),
 
-  body('role')
-    .notEmpty()
-    .withMessage('Role is required'),
 ];
 
 

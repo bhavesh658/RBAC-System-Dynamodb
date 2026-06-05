@@ -23,6 +23,7 @@ const userSchema = new mongoose.Schema(
             unique: true,
             lowercase: true,
             trim: true,
+            index: true,
         },
 
         password: {
@@ -41,13 +42,14 @@ const userSchema = new mongoose.Schema(
         department: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Department',
-            required: [true, 'Department is required'],
+            default: null,
+
         },
 
         role: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Role',
-            required: [true, 'Role is required'],
+            default: null,
         },
 
         createdBy: {
@@ -68,16 +70,19 @@ const userSchema = new mongoose.Schema(
         resetPasswordOtp: {
             type: String,
             default: null,
+            select: false,
         },
 
         resetPasswordOtpExpires: {
             type: Date,
             default: null,
+            select: false,
         },
 
         refreshToken: {
             type: String,
             default: null,
+            select: false,
         },
     },
     {

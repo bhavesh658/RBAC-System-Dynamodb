@@ -1,7 +1,9 @@
 const Lead = require('./lead.model');
+const User = require('../users/user.model');
 const getPagination = require('../../common/pagination');
 const AppError = require('../../common/AppError');
 const HTTP_STATUS = require('../../constants/httpStatus');
+const { createActivityLog } = require('../activity-logs/activityLog.service');
 
 
 const createLead = async (payload, currentUser) => {
@@ -9,6 +11,20 @@ const createLead = async (payload, currentUser) => {
     ...payload,
     createdBy: currentUser._id,
     updatedBy: currentUser._id,
+  });
+
+  await createActivityLog({
+    module: 'Lead',
+    action: 'Create',
+    description: `${currentUser.firstName} ${currentUser.lastName} created a new lead`,
+    performedBy: currentUser._id,
+    metadata: {
+      newvalue: {
+        ...payload,
+        createdBy: currentUser._id,
+        updatedBy: currentUser._id,
+      }
+    }
   });
 
   return getLeadById(lead._id);
@@ -142,7 +158,8 @@ const updateLead = async (
   payload,
   currentUser
 ) => {
-  const lead = await Lead.findOneAndUpdate(
+  
+  const lead = await Lead.findOne(
     {
       _id: leadId,
       isDeleted: false,
@@ -163,6 +180,23 @@ const updateLead = async (
       HTTP_STATUS.NOT_FOUND
     );
   }
+
+  Object.assign(lead, payload, { updatedBy: currentUser._id });
+  await lead.save();
+
+  await createActivityLog({
+    module: 'Lead',
+    action: 'Update',
+    description: `${currentUser.firstName} ${currentUser.lastName} updated lead "${lead._id}"`,
+    performedBy: currentUser._id,
+    recordId: lead._id,
+    metadata: {
+      newvalue: {
+        ...payload,
+        updatedBy: currentUser._id,
+      }
+    }
+  });
 
   return getLeadById(lead._id);
 };
@@ -186,6 +220,14 @@ const deleteLead = async (
     }
   );
 
+  await createActivityLog({
+    module: 'Lead',
+    action: 'Delete',
+    description: `${currentUser.firstName} ${currentUser.lastName} deleted lead "${lead.name}"`,
+    performedBy: currentUser._id,
+    recordId: lead._id,
+  });
+
   if (!lead) {
     throw new AppError(
       'Lead not found',
@@ -197,16 +239,53 @@ const deleteLead = async (
 };
 
 
-const assignLead = async (
-  leadId,
-  assignedTo,
-  currentUser
-) => {
-  return updateLead(
-    leadId,
-    { assignedTo },
-    currentUser
-  );
+const assignLead = async (leadId, assignedTo, currentUser) => {
+  const lead = await Lead.findOne({
+    _id: leadId,
+    isDeleted: false,
+  });
+
+
+  const user = await User.findOne({
+    _id: assignedTo,
+  });
+
+  if (!user) {
+    throw new AppError( 
+      'Assigned user not found or inactive',
+      HTTP_STATUS.NOT_FOUND
+    );
+  }
+  if (!lead) {
+    throw new AppError(
+      'Lead not found',
+      HTTP_STATUS.NOT_FOUND
+    );
+  }
+  const oldlead ={
+    assignedTo: lead.assignedTo,
+    status: lead.status,
+  }
+  await createActivityLog({
+    module: 'Lead',
+    action: 'Assign',
+    description: `${currentUser.firstName} ${currentUser.lastName} assigned lead "${lead._id}" to user "${user.firstName} ${user.lastName}"`,
+    performedBy: currentUser._id,
+    metadata: {
+      oldvalue: {
+        assignedTo: oldlead.assignedTo,
+        status: oldlead.status,
+      }
+    ,
+      newvalue: {
+        assignedTo,
+        status: oldlead.status,
+      }
+    },
+    recordId: leadId,
+  });
+
+  return updateLead(leadId, { assignedTo }, currentUser);
 };
 
 
@@ -215,6 +294,20 @@ const updateLeadStatus = async (
   status,
   currentUser
 ) => {
+
+  await createActivityLog({
+    module: 'Lead',
+    action: 'Status Update',
+    description: `${currentUser.firstName} ${currentUser.lastName} updated status of lead "${leadId}" to "${status}"`,
+    performedBy: currentUser._id,
+    recordId: leadId,
+    metadata: {
+      newvalue: {
+        status,
+      }
+    }
+  });
+
   return updateLead(
     leadId,
     {
