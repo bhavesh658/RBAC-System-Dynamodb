@@ -35,13 +35,15 @@ const sendEmail = async ({ to, subject, html }) => {
   return info;
 };
 const generateAccessToken = (user) => {
-  if (!user || !user._id || !user.role || !user.department) {
+  if (!user || !user.userId
+    // || !user.role || !user.department
+  ) {
     throw new Error('Invalid user object for token generation');
   }
   const payload = {
-    sub: user._id.toString(),
-    role: user.role.toString(),
-    department: user.department.toString(),
+    sub: user.userId,
+    role: user.role,
+    department: user.department,
   };
 
   const token = jwt.sign(
@@ -58,9 +60,13 @@ const generateAccessToken = (user) => {
 const generateRefreshToken = (
   user
 ) => {
+  
+  if (!user || !user.userId) {
+    throw new Error('Invalid user object for refresh token generation');
+  }
   return jwt.sign(
     {
-      sub: user._id,
+      sub: user.userId,
     },
     process.env.JWT_REFRESH_SECRET,
     {

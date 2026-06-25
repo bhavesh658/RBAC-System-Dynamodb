@@ -1,97 +1,117 @@
-const Attendance = require('../attendance/attendance.model');
-const mongoose = require('mongoose'); 
+const attendanceRepository = require(
+  '../attendance/attendance.repository'
+);
 
-const getDailyReport = async (date) => {
-  const start = new Date(date);
-  start.setHours(0, 0, 0, 0);
+const userRepository = require(
+  '../users/user.repository'
+);
 
-  const end = new Date(date);
-  end.setHours(23, 59, 59, 999);
+const departmentRepository = require(
+  '../departments/department.repository'
+);
 
-  return Attendance.find({
-    date: { $gte: start, $lte: end },
-  })
-    .populate('user', 'firstName lastName email')
-    .populate({
-      path: 'user',
-      populate: {
-        path: 'department',
-        select: 'name code',
-      },
+
+
+const getDailyReport = async (
+  date
+) => {
+
+  const attendances =
+    await attendanceRepository.findByDate(
+      date
+    );
+
+  const report = [];
+
+  for (const attendance of attendances) {
+
+    const user =
+      await userRepository.findById(
+        attendance.userId
+      );
+
+    report.push({
+      ...attendance,
+      userData: user
+        ? sanitizeUser(user)
+        : null,
     });
+  }
+
+  return report;
 };
 
-const getMonthlyReport = async (month, year) => {
-  const start = new Date(year, month - 1, 1);
-  const end = new Date(year, month, 0, 23, 59, 59);
+const getMonthlyReport = async (
+  month,
+  year
+) => {
 
-  return Attendance.find({
-    date: { $gte: start, $lte: end },
-  }).populate('user', 'firstName lastName email');
+  const attendances =
+    await attendanceRepository.getAllAttendances();
+
+  return attendances.filter(
+    (attendance) => {
+
+      const date =
+        new Date(attendance.date);
+
+      return (
+        date.getMonth() + 1 === month &&
+        date.getFullYear() === year
+      );
+    }
+  );
 };
 
+const getDepartmentReport = async (
+  departmentId
+) => {
 
-const getDepartmentReport = async (departmentId) => {
-  const report = await Attendance.aggregate([
-    {
-      $lookup: {
-        from: 'users',              // Aapke users collection ka sahi naam (usually plural)
-        localField: 'user',         // Attendance model ki field
-        foreignField: '_id',        // User model ki field
-        as: 'userDetails'
-      }
-    },
-    {
-      $unwind: {
-        path: '$userDetails',
-        preserveNullAndEmptyArrays: false 
-      }
-    },
-    {
-      $match: {
-        'userDetails.department': new mongoose.Types.ObjectId(departmentId)
-      }
-    },
-    {
-      $lookup: {
-        from: 'departments',        
-        localField: 'userDetails.department',
-        foreignField: '_id',
-        as: 'departmentDetails'
-      }
-    },
-    {
-      $unwind: {
-        path: '$departmentDetails',
-        preserveNullAndEmptyArrays: true
-      }
-    },
-    {
-      $project: {
-        _id: 1,
-        date: 1,
-        punchIn: 1,
-        punchOut: 1,
-        totalHours: 1,
-        createdAt: 1,
-        updatedAt: 1,
-        user: {
-          _id: '$userDetails._id',
-          firstName: '$userDetails.firstName',
-          lastName: '$userDetails.lastName',
-          email: '$userDetails.email',
-          department: {
-            _id: '$departmentDetails._id',
-            name: '$departmentDetails.name',
-            code: '$departmentDetails.code'
-          }
-        }
-      }
-    },
-    { $sort: { date: -1 } }
-  ]);
+  const users =
+    await userRepository.getAllUsers();
 
-  return report; 
+  const departmentUsers =
+    users.filter(
+      (user) =>
+        user.departmentId ===
+        departmentId
+    );
+
+  const userIds =
+    departmentUsers.map(
+      (user) => user.userId
+    );
+
+  const attendances =
+    await attendanceRepository.getAllAttendances();
+
+  const report = [];
+
+  for (const attendance of attendances) {
+
+    if (
+      userIds.includes(
+        attendance.userId
+      )
+    ) {
+
+      const user =
+        departmentUsers.find(
+          (u) =>
+            u.userId ===
+            attendance.userId
+        );
+
+      report.push({
+        ...attendance,
+        userData: user
+          ? sanitizeUser(user)
+          : null,
+      });
+    }
+  }
+
+  return report;
 };
 
 module.exports = {

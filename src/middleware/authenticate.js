@@ -1,10 +1,7 @@
 const jwt = require('jsonwebtoken');
 
-const User = require('../modules/users/user.model');
-require('../modules/departments/department.model');
-require('../modules/roles/role.model');
-require('../modules/permissions/permission.model');
-const TokenBlacklist = require('../modules/auth/tokenBlacklist.model');
+const UserRepository = require('../modules/users/user.repository');
+const tokenBlacklistRepository = require("../modules/auth/tokenBlacklist.repository");
 
 const AppError = require('../common/AppError');
 const HTTP_STATUS = require('../constants/httpStatus');
@@ -36,9 +33,9 @@ const authenticate = asyncHandler(async (req, res, next) => {
   }
 
   const blacklistedToken =
-    await TokenBlacklist.findOne({
-      token,
-    });
+    await tokenBlacklistRepository.findByToken(
+      token
+    );
 
   if (blacklistedToken) {
     throw new AppError(
@@ -63,20 +60,16 @@ const authenticate = asyncHandler(async (req, res, next) => {
       HTTP_STATUS.UNAUTHORIZED
     );
   }
-
   // Load current user with department, role and permissions
-  const user = await User.findById(decoded.sub)
-    .select('-password')
-    .populate('department', 'name code')
-    .populate({
-      path: 'role',
-      select: 'name permissions',
-      populate: {
-        path: 'permissions',
-        select:
-          'name module action description',
-      },
-    });
+  const user = await UserRepository.findById(
+    decoded.sub
+  );
+  // const user = await User.findById(decoded.sub)
+  // .populate('department')
+  // .populate({
+  //     path: 'role',
+  //     select: 'name permissions'
+  // });
 
   if (!user) {
     throw new AppError(

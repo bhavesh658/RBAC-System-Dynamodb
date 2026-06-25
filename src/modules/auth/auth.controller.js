@@ -2,7 +2,6 @@ const asyncHandler = require('../../common/asyncHandler');
 const sendResponse = require('../../common/apiResponse');
 const HTTP_STATUS = require('../../constants/httpStatus');
 const authService = require('./auth.service');
-const TokenBlacklist = require('./tokenBlacklist.model');
 
 const login = asyncHandler(async (req, res) => {
 
@@ -28,7 +27,7 @@ const login = asyncHandler(async (req, res) => {
     }
   );
   const userResponse = {
-    _id: result.user._id,
+    userId: result.user.userId,
     firstName: result.user.firstName,
     lastName: result.user.lastName,
     fullName: result.user.fullName,
@@ -131,7 +130,7 @@ const changePassword = asyncHandler(async (req, res) => {
 
   const result =
     await authService.changePassword(
-      req.user._id,
+      req.user.userId,
       req.body.currentPassword,
       req.body.newPassword
     );

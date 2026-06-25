@@ -1,16 +1,17 @@
-const Role = require('./role.model');
-const Permission = require('../permissions/permission.model');
+const roleRepository = require('./role.repository');
+const { v4: uuidv4 } = require('uuid');
+const permissionRepository = require('../permissions/permission.repository');
 const AppError = require('../../common/AppError');
 const HTTP_STATUS = require('../../constants/httpStatus');
 const pagination = require('../../common/pagination');
 const { createActivityLog } = require('../activity-logs/activityLog.service')
 
 const createRole = async (data, user) => {
-  const existing = await Role.findOne({
-    name: data.name,
-    department: data.department,
-  });
-
+  const existing =
+    await roleRepository.findByNameAndDepartment(
+      data.name,
+      data.department
+    );
   if (existing) {
     throw new AppError(
       'Role already exists in this department',
@@ -18,24 +19,34 @@ const createRole = async (data, user) => {
     );
   }
 
-  const role = await Role.create({
-    ...data,
-    createdBy: user._id,
-  });
+  const role = {
+    roleId: uuidv4(),
+    name: data.name,
+    description: data.description || "",
+    department: data.department,
+    permissions: data.permissions || [],
+    isSystemRole: false,
+    isActive: true,
+    createdBy: user.userId,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
 
-  await createActivityLog({
-    module: 'Role',
-    action: 'Create',
-    description: `${user.firstName} ${user.lastName} created role ${role.name}`,
-    recordId: role._id,
-    metadata: {
-      newvalue: {
-        name: role.name,
-        department: role.department,
-      }
-    },
-    performedBy: user._id,
-  });
+  await roleRepository.createRole(role);
+
+  // await createActivityLog({
+  //   module: 'Role',
+  //   action: 'Create',
+  //   description: `${user.firstName} ${user.lastName} created role ${role.name}`,
+  //   recordId: role._id,
+  //   metadata: {
+  //     newvalue: {
+  //       name: role.name,
+  //       department: role.department,
+  //     }
+  //   },
+  //   performedBy: user._id,
+  // });
 
   return role;
 };
@@ -43,99 +54,105 @@ const createRole = async (data, user) => {
 const getRolesByDepartment = async (departmentId, options = {}) => {
   const { limit, skip } = pagination(options);
 
-  return Role.find({ department: departmentId })
-    .populate('permissions', 'name module action')
-    .populate('parentRole', 'name')
-    .skip(skip)
-    .limit(limit);
+  const roles =
+    await roleRepository.getAllRoles();
+
+  return roles
+    .filter(
+      (role) =>
+        role.department === departmentId
+    )
+    .slice(skip, skip + limit);
 };
 
-const assignPermissions = async (roleId, permissionIds, user) => {
-  const role = await Role.findById(roleId);
+const assignPermissions = async (
+  roleId,
+  permissionIds,
+  user
+) => {
+
+  const role =
+    await roleRepository.findById(
+      roleId
+    );
 
   if (!role) {
-    throw new AppError('Role not found', HTTP_STATUS.NOT_FOUND);
+    throw new AppError(
+      "Role not found",
+      HTTP_STATUS.NOT_FOUND
+    );
   }
 
-  // Validate permissions
-  const validPermissions = await Permission.find({
-    _id: { $in: permissionIds },
-  }).select('_id');
+  const existingPermissions =
+    role.permissions || [];
 
-  if (validPermissions.length !== permissionIds.length) {
+  const mergedPermissions =
+    [
+      ...new Set([
+        ...existingPermissions,
+        ...permissionIds,
+      ]),
+    ];
+
+  const updatedRole =
+    await roleRepository.updatePermissions(
+      roleId,
+      mergedPermissions
+    );
+
+  return updatedRole;
+};
+
+const removePermissions = async (
+  roleId,
+  permissionIds,
+  user
+) => {
+  const role =
+    await roleRepository.findById(
+      roleId
+    );
+
+  if (!role) {
     throw new AppError(
-      'One or more permissions are invalid',
+      "Role not found",
+      HTTP_STATUS.NOT_FOUND
+    );
+  }
+
+  const existingPermissions =
+    role.permissions || [];
+
+  const invalidPermissions =
+    permissionIds.filter(
+      (id) =>
+        !existingPermissions.includes(id)
+    );
+
+  if (invalidPermissions.length > 0) {
+    throw new AppError(
+      `Invalid permission ids: ${invalidPermissions.join(", ")}`,
       HTTP_STATUS.BAD_REQUEST
     );
   }
 
-  // Merge existing + new permissions
-  const existingIds = role.permissions.map((id) =>
-    id.toString()
-  );
-
-  for (const permission of permissionIds) {
-    if (!existingIds.includes(permission.toString())) {
-      role.permissions.push(permission);
-    }
-  }
-
-  await createActivityLog({
-    module: 'Role',
-    action: 'Assign Permissions',
-    description: `${user.firstName} ${user.lastName} assigned permissions to role "${role.name}"`,
-    performedBy: user._id,
-    metadata: {
-      newvalue: {
-        permissions: role.permissions,
-      }
-    }
-  })
-
-  await role.save();
-
-  return Role.findById(roleId)
-    .populate('department', 'name code')
-    .populate(
-      'permissions',
-      'name module action description'
+  const updatedPermissions =
+    existingPermissions.filter(
+      (permissionId) =>
+        !permissionIds.includes(
+          permissionId
+        )
     );
+
+  const updatedRole =
+    await roleRepository.updatePermissions(
+      roleId,
+      updatedPermissions
+    );
+
+  return updatedRole;
 };
 
-
-const removePermissions = async (roleId, permissionIds, user) => {
-  const role = await Role.findById(roleId);
-
-  if (!role) {
-    throw new AppError('Role not found', HTTP_STATUS.NOT_FOUND);
-  }
-
-  role.permissions = role.permissions.filter(
-    (permissionId) =>
-      !permissionIds.includes(permissionId.toString())
-  );
-
-  await role.save();
-
-  await createActivityLog({
-    module: 'Role',
-    action: 'Remove Permissions From Role',
-    description: `${user.firstName} ${user.lastName} removed permissions to role "${role.name}"`,
-    performedBy: user._id,
-    metadata: {
-      oldvalue: {
-        permissions: role.permissions,
-      }
-    }
-  })
-
-  return Role.findById(roleId)
-    .populate('department', 'name code')
-    .populate(
-      'permissions',
-      'name module action description'
-    );
-};
 const getAllRoles = async (query = {}) => {
 
   const filter = {};
@@ -147,47 +164,66 @@ const getAllRoles = async (query = {}) => {
 
   const { limit, skip } = pagination(query);
 
-  return Role.find(filter)
-    .populate('department', 'name code')
-    .populate('permissions', 'name module action')
-    .populate('parentRole', 'name')
-    .skip(skip)
-    .limit(limit)
-    .sort({ name: 1 });
+  const roles =
+    await roleRepository.getAllRoles();
+
+  return roles
+    .filter((role) =>
+      query.department
+        ? role.department === query.department
+        : true
+    )
+    .sort((a, b) =>
+      a.name.localeCompare(b.name)
+    )
+    .slice(skip, skip + limit);
 };
 
-const updateRole = async (id, data, user) => {
-  const role = await Role.findOne({ _id: id });
+const updateRole = async (
+  roleId,
+  data,
+  user
+) => {
 
-  if (!role) {
-    throw new AppError('Role not found', HTTP_STATUS.NOT_FOUND);
+  const existingRole =
+    await roleRepository.findById(roleId);
+
+  if (!existingRole) {
+    throw new AppError(
+      "Role not found",
+      HTTP_STATUS.NOT_FOUND
+    );
   }
-  const oldRoleData = {
-    name: role.name,
-    department: role.department,
-  };
-  Object.assign(role, data);
-  await role.save();
 
-  await createActivityLog({
-    module: 'Role',
-    action: 'Update',
-    description: `${user.firstName} ${user.lastName} updated role "${role.name}"`,
-    recordId: role._id,
-    performedBy: user._id,
-    metadata: {
-      oldvalue: {
-        name: oldRoleData.name,
-        department: oldRoleData.department,
-      },
-      newvalue: {
-        name: data.name || role.name,
-        department: data.department || role.department,
+  const updatedRole =
+    await roleRepository.updateRole(
+      roleId,
+      {
+        ...data,
+        updatedAt:
+          new Date().toISOString(),
       }
-    }
-  });
+    );
 
-  return role;
+  // await createActivityLog({
+  //   module: 'Role',
+  //   action: 'Update',
+  //   description: `${user.firstName} ${user.lastName} updated role "${role.name}"`,
+  //   recordId: role._id,
+  //   performedBy: user._id,
+  //   metadata: {
+  //     oldvalue: {
+  //       name: oldRoleData.name,
+  //       department: oldRoleData.department,
+  //     },
+  //     newvalue: {
+  //       name: data.name || role.name,
+  //       department: data.department || role.department,
+  //     }
+  //   }
+  // });
+
+  return updatedRole;
 };
 
 module.exports = {

@@ -38,7 +38,7 @@ router.get(
   '/:id',
   authenticate,
   authorize('leads.read'),
-  validateObjectId,
+  // validateObjectId,
   leadController.getLeadById
 );
 
@@ -47,7 +47,7 @@ router.patch(
   '/:id',
   authenticate,
   authorize('leads.update'),
-  validateObjectId,
+  // validateObjectId,
   updateLeadValidation,
   validateRequest,
   leadController.updateLead
@@ -57,7 +57,7 @@ router.patch(
   '/:id/assign',
   authenticate,
   authorize('leads.assign'),
-  validateObjectId,
+  // validateObjectId,
   assignLeadValidation,
   validateRequest,
   leadController.assignLead
@@ -68,7 +68,7 @@ router.patch(
   '/:id/status',
   authenticate,
   authorize('leads.update'),
-  validateObjectId,
+  // validateObjectId,
   updateLeadStatusValidation,
   validateRequest,
   leadController.updateLeadStatus
@@ -79,7 +79,7 @@ router.delete(
   '/:id',
   authenticate,
   authorize('leads.delete'),
-  validateObjectId,
+  // validateObjectId,
   leadController.deleteLead
 );
 

@@ -1,77 +1,61 @@
-const ActivityLog = require(
-    './activityLog.model'
-);
+const { v4: uuidv4 } = require("uuid");
+const activityLogRepository = require("./activityLog.repository");
+const getPagination = require("../../common/pagination");
 
-const getPagination = require(
-    '../../common/pagination'
-);
+const createActivityLog = async ({
+    module,
+    action,
+    description,
+    recordId = null,
+    performedBy,
+    metadata = {},
+}) => {
 
-const createActivityLog =
-    async ({
+    const log = {
+        logId: uuidv4(),
         module,
         action,
         description,
-        recordId = null,
+        recordId,
         performedBy,
-        metadata = {},
-    }) => {
-
-        return ActivityLog.create({
-            module,
-            action,
-            description,
-            recordId,
-            performedBy,
-            metadata,
-        });
+        metadata,
+        createdAt:
+            new Date().toISOString(),
     };
 
-
-
+    return await activityLogRepository.create(log);
+};
 
 const getAllActivityLogs =
     async (query = {}) => {
-        const { limit, skip } = getPagination(query);
 
-        const filter = {};
+        let logs;
 
         if (query.module) {
-            filter.module =
-                query.module;
+            logs =
+                await activityLogRepository.getByModule(
+                    query.module
+                );
+        } else {
+            logs =
+                await activityLogRepository.getAll();
         }
 
-        if (query.action) {
-            filter.action =
-                query.action;
-        }
+        logs.sort(
+            (a, b) =>
+                new Date(b.createdAt) -
+                new Date(a.createdAt)
+        );
 
-        if (query.performedBy) {
-            filter.performedBy =
-                query.performedBy;
-        }
+        const {
+            limit,
+            skip,
+        } = getPagination(query);
 
-        if (query.recordId) {
-            filter.recordId =
-                query.recordId;
-        }
-
-        const logs =
-            await ActivityLog.find(
-                filter
-            )
-                .skip(skip)
-                .limit(limit)
-
-                .populate(
-                    'performedBy',
-                    'firstName lastName email'
-                )
-
-                .sort({
-                    createdAt: -1,
-                });
-
-        return logs;
+        return logs.slice(
+            skip,
+            skip + limit
+        );
     };
 
 module.exports = {

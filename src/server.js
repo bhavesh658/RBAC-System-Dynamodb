@@ -1,13 +1,11 @@
 require('dotenv').config();
-
 const app = require('./app');
-const connectDB = require('./config/db');
+const connectDB = require('./config/HealthDynamodb');
 const logger = require("./utils/logger")
 const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
   try {
-    // Connect to MongoDB
     await connectDB();
 
     // Start Express server

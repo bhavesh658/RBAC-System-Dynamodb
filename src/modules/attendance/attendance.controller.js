@@ -5,7 +5,7 @@ const HTTP_STATUS = require('../../constants/httpStatus');
 const attendanceService = require('./attendance.service');
 
 const punchIn = asyncHandler(async (req, res) => {
-  const data = await attendanceService.punchIn(req.user._id);
+  const data = await attendanceService.punchIn(req.user.userId);
 
   return sendResponse(
     res,
@@ -16,7 +16,7 @@ const punchIn = asyncHandler(async (req, res) => {
 });
 
 const punchOut = asyncHandler(async (req, res) => {
-  const data = await attendanceService.punchOut(req.user._id);
+  const data = await attendanceService.punchOut(req.user.userId);
 
   return sendResponse(
     res,

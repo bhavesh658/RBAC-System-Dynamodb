@@ -1,151 +1,164 @@
-const Task = require('./task.model');
-const User = require('../users/user.model');
-const AppError = require(
-  '../../common/AppError'
-);
 
-const HTTP_STATUS = require(
-  '../../constants/httpStatus'
-);
+const AppError = require('../../common/AppError');
+const HTTP_STATUS = require('../../constants/httpStatus');
+const taskRepository = require('./task.repository');
+const projectRepository = require('../projects/project.repository');
+const userRepository = require('../users/user.repository');
+const { createActivityLog, } = require('../activity-logs/activityLog.service');
 
-
-const {
-  createActivityLog,
-} = require(
-  '../activity-logs/activityLog.service'
-);
-
+const { v4: uuidv4 } = require("uuid");
 
 const createTask = async (
   payload,
   currentUser
 ) => {
 
-  const task =
-    await Task.create({
-      ...payload,
+  const project =
+    await projectRepository.findById(
+      payload.projectId
+    );
 
-      createdBy:
-        currentUser._id,
-    });
+  if (!project || project.isDeleted) {
+    throw new AppError(
+      "Project not found",
+      HTTP_STATUS.NOT_FOUND
+    );
+  }
+
+  if (payload.assignedTo) {
+
+    const assignedUser =
+      await userRepository.findById(
+        payload.assignedTo
+      );
+
+    if (!assignedUser) {
+      throw new AppError(
+        "Assigned user not found",
+        HTTP_STATUS.NOT_FOUND
+      );
+    }
+  }
+
+  const task = {
+    taskId: uuidv4(),
+
+    title: payload.title,
+    description:
+      payload.description || "",
+
+    projectId:
+      payload.projectId,
+
+    assignedTo:
+      payload.assignedTo || null,
+
+    status:
+      payload.status || "Todo",
+
+    priority:
+      payload.priority || "Medium",
+
+    startDate:
+      payload.startDate || null,
+
+    dueDate:
+      payload.dueDate || null,
+
+    isDeleted: false,
+    isActive: true,
+
+    createdBy:
+      currentUser.userId,
+
+    updatedBy: null,
+
+    createdAt:
+      new Date().toISOString(),
+
+    updatedAt:
+      new Date().toISOString(),
+  };
+
+  await taskRepository.createTask(
+    task
+  );
 
   await createActivityLog({
-    module: 'Task',
-    action: 'Create',
+    module: "Task",
+    action: "Create",
     description:
-      `${currentUser.fullName} created task ${task.title}`,
-    recordId: task._id,
-    performedBy: currentUser._id,
-    metadata: {
-      newValue: {
-        title: task.title,
-        status: task.status,
-        priority: task.priority,
-        assignedTo: task.assignedTo,
-      },
-    },
+      `Task ${task.title} created by ${currentUser.firstName} ${currentUser.lastName}`,
+    performedBy:
+      currentUser.userId,
+    recordId:
+      task.taskId,
   });
 
   return task;
 };
 
 
+const getAllTasks = async (query = {}) => {
 
-const getAllTasks = async (
-  query = {}
-) => {
-
-  const filter = {
-    isDeleted: false,
-  };
-
-  if (query.project) {
-    filter.project =
-      query.project;
-  }
+  let tasks = [];
 
   if (query.assignedTo) {
-    filter.assignedTo =
-      query.assignedTo;
+
+    tasks = await taskRepository.findByAssignedTo(query.assignedTo);
+
+  } else if (query.projectId) {
+    tasks = await taskRepository.findByProjectId(query.projectId);
+
+  } else if (query.status) {
+
+    tasks = await taskRepository.findByStatus(query.status);
+
+  } else {
+
+    tasks = await taskRepository.getAllTasks();
   }
 
-  if (query.status) {
-    filter.status =
-      query.status;
-  }
+  tasks = tasks.filter(
+    (task) => !task.isDeleted
+  );
 
   if (query.priority) {
-    filter.priority =
-      query.priority;
+
+    tasks = tasks.filter(
+      (task) =>
+        task.priority ===
+        query.priority
+    );
   }
-
-  const tasks =
-    await Task.find(filter)
-
-      .populate(
-        'project',
-        'name status'
-      )
-
-      .populate(
-        'assignedTo',
-        'firstName lastName email'
-      )
-
-      .populate(
-        'createdBy',
-        'firstName lastName'
-      )
-
-      .populate(
-        'updatedBy',
-        'firstName lastName'
-      )
-
-      .sort({
-        createdAt: -1,
-      });
 
   return tasks;
 };
 
 
 
-const getTaskById = async (
-  taskId
-) => {
+const getTaskById = async (taskId) => {
 
-  const task =
-    await Task.findOne({
-      _id: taskId,
-      isDeleted: false,
-    })
-
-      .populate(
-        'project',
-        'name status'
-      )
-
-      .populate(
-        'assignedTo',
-        'firstName lastName email'
-      )
-
-      .populate(
-        'createdBy',
-        'firstName lastName'
-      )
-
-      .populate(
-        'updatedBy',
-        'firstName lastName'
-      );
-
-  if (!task) {
+  const task = await taskRepository.findById(taskId);
+  if (!task || task.isDeleted) {
     throw new AppError(
-      'Task not found',
+      "Task not found",
       HTTP_STATUS.NOT_FOUND
     );
+  }
+
+  if (task.projectId) {
+
+    task.projectData =
+      await projectRepository.findById(
+        task.projectId
+      );
+  }
+
+  if (task.assignedTo) {
+
+    task.assignedToData = await userRepository.findById(task.assignedTo);
+
   }
 
   return task;
@@ -160,52 +173,44 @@ const updateTask = async (
 ) => {
 
   const task =
-    await Task.findOne({
-      _id: taskId,
-      isDeleted: false,
-    });
+    await taskRepository.findById(
+      taskId
+    );
 
-  if (!task) {
+  if (
+    !task ||
+    task.isDeleted
+  ) {
     throw new AppError(
-      'Task not found',
+      "Task not found",
       HTTP_STATUS.NOT_FOUND
     );
   }
-  const oldTask = {
-    title: task.title,
-    status: task.status,
-    priority: task.priority,
-    assignedTo: task.assignedTo,
-  };
-  Object.assign(
-    task,
-    payload
-  );
 
-  task.updatedBy =
-    currentUser._id;
-
-  await task.save();
+  const updatedTask =
+    await taskRepository.updateTask(
+      taskId,
+      {
+        ...payload,
+        updatedBy:
+          currentUser.userId,
+        updatedAt:
+          new Date().toISOString(),
+      }
+    );
 
   await createActivityLog({
-    module: 'Task',
-    action: 'Update',
+    module: "Task",
+    action: "Update",
     description:
-      `${currentUser.fullName} updated task ${task.title}`,
-    recordId: task._id,
-    performedBy: currentUser._id,
-    metadata: {
-      previousValue: oldTask,
-      newValue: {
-        title: task.title,
-        status: task.status,
-        priority: task.priority,
-        assignedTo: task.assignedTo,
-      },
-    },
+      `Task ${updatedTask.title} updated by ${currentUser.firstName} ${currentUser.lastName}`,
+    performedBy:
+      currentUser.userId,
+    recordId:
+      updatedTask.taskId,
   });
 
-  return task;
+  return updatedTask;
 };
 
 
@@ -216,44 +221,44 @@ const deleteTask = async (
 ) => {
 
   const task =
-    await Task.findOne({
-      _id: taskId,
-      isDeleted: false,
-    });
+    await taskRepository.findById(
+      taskId
+    );
 
-  if (!task) {
+  if (
+    !task ||
+    task.isDeleted
+  ) {
     throw new AppError(
-      'Task not found',
+      "Task not found",
       HTTP_STATUS.NOT_FOUND
     );
   }
 
-  task.isDeleted = true;
-
-  task.updatedBy =
-    currentUser._id;
-
-  await task.save();
+  await taskRepository.updateTask(
+    taskId,
+    {
+      isDeleted: true,
+      updatedBy:
+        currentUser.userId,
+      updatedAt:
+        new Date().toISOString(),
+    }
+  );
 
   await createActivityLog({
-    module: 'Task',
-    action: 'Delete',
+    module: "Task",
+    action: "Delete",
     description:
-      `${currentUser.fullName} deleted task ${task.title}`,
-    recordId: task._id,
-    performedBy: currentUser._id,
-    metadata: {
-      deletedTask: {
-        title: task.title,
-        status: task.status,
-        priority: task.priority,
-      },
-    },
+      `Task ${task.title} deleted by ${currentUser.firstName} ${currentUser.lastName}`,
+    performedBy:
+      currentUser.userId,
+    recordId:
+      task.taskId,
   });
 
   return true;
 };
-
 
 
 const assignTask = async (
@@ -263,123 +268,106 @@ const assignTask = async (
 ) => {
 
   const task =
-    await Task.findOne({
-      _id: taskId,
-      isDeleted: false,
-    });
-
-  const user =
-    await User.findById(
-      assignedTo
-    ).select(
-      'firstName lastName'
+    await taskRepository.findById(
+      taskId
     );
 
-    if (!user) {
-  throw new AppError(
-    'Assigned user not found',
-    HTTP_STATUS.NOT_FOUND
-  );
-}
-
-  if (!task) {
+  if (
+    !task ||
+    task.isDeleted
+  ) {
     throw new AppError(
-      'Task not found',
+      "Task not found",
       HTTP_STATUS.NOT_FOUND
     );
   }
 
-  const previousAssignedTo =
-    task.assignedTo;
+  const user =
+    await userRepository.findById(
+      assignedTo
+    );
 
-  task.assignedTo =
-    assignedTo;
+  if (!user) {
+    throw new AppError(
+      "Assigned user not found",
+      HTTP_STATUS.NOT_FOUND
+    );
+  }
 
-  task.updatedBy =
-    currentUser._id;
-
-  await task.save();
-
+  const updatedTask =
+    await taskRepository.updateTask(
+      taskId,
+      {
+        assignedTo,
+        updatedBy:
+          currentUser.userId,
+        updatedAt:
+          new Date().toISOString(),
+      }
+    );
 
   await createActivityLog({
-    module: 'Task',
-    action: 'Assign',
+    module: "Task",
+    action: "Assign",
     description:
-      `${currentUser.fullName} assigned task ${task.title}`,
-    recordId: task._id,
-    performedBy: currentUser._id,
-    metadata: {
-      previousValue: {
-        assignedToId:
-          task.assignedTo || null,
-      },
-
-      newValue: {
-        assignedToId:
-          user._id,
-
-        assignedToName:
-          `${user.firstName} ${user.lastName}`,
-      },
-    },
+      `Task ${task.title} assigned to ${user.firstName} ${user.lastName}`,
+    performedBy:
+      currentUser.userId,
+    recordId:
+      task.taskId,
   });
 
-  return task;
+  return updatedTask;
 };
 
 
 
-const changeTaskStatus =
-  async (
-    taskId,
-    status,
-    currentUser
-  ) => {
+const changeTaskStatus = async (
+  taskId,
+  status,
+  currentUser
+) => {
 
-    const task =
-      await Task.findOne({
-        _id: taskId,
-        isDeleted: false,
-      });
+  const task =
+    await taskRepository.findById(
+      taskId
+    );
 
-    if (!task) {
-      throw new AppError(
-        'Task not found',
-        HTTP_STATUS.NOT_FOUND
-      );
-    }
-    const previousStatus =
-      task.status;
+  if (
+    !task ||
+    task.isDeleted
+  ) {
+    throw new AppError(
+      "Task not found",
+      HTTP_STATUS.NOT_FOUND
+    );
+  }
 
-    task.status = status;
+  const updatedTask =
+    await taskRepository.updateTask(
+      taskId,
+      {
+        status,
+        updatedBy:
+          currentUser.userId,
+        updatedAt:
+          new Date().toISOString(),
+      }
+    );
 
-    task.updatedBy =
-      currentUser._id;
+  await createActivityLog({
+    module: "Task",
+    action: "Status Change",
+    description:
+      `Task ${task.title} status changed to ${status}`,
+    performedBy:
+      currentUser.userId,
+    recordId:
+      task.taskId,
+  });
 
-    await task.save();
-
-    await createActivityLog({
-      module: 'Task',
-      action: 'Status Change',
-      description:
-        `${currentUser.fullName} changed task status`,
-      recordId: task._id,
-      performedBy: currentUser._id,
-      metadata: {
-        previousValue: {
-          status:
-            previousStatus,
-        },
-
-        newValue: {
-          status,
-        },
-      },
-    });
-
-    return task;
-  };
-
+  return updatedTask;
+};
 module.exports = {
   createTask,
   getAllTasks,

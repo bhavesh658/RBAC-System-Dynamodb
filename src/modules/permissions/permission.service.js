@@ -1,16 +1,12 @@
-const Permission = require('./permission.model');
+const permissionRepository = require('./permission.repository');
 const getPagination = require('../../common/pagination');
 
 
 const getAllPermissions = async (options = {}) => {
 const { limit, skip } = getPagination(options);
-  return Permission.find()
-    .skip(skip)
-    .limit(limit)
-    .sort({ module: 1, action: 1 });
-}
-
-
+  return permissionRepository.getAllPermissions()
+    
+};
 
 module.exports = {
     getAllPermissions,

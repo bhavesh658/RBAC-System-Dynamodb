@@ -23,14 +23,14 @@ router.get(
   '/department/:departmentId',
   authenticate,
   authorize('roles.read'),
-  validateObjectId,
+  // validateObjectId,
   roleController.getRolesByDepartment
 );
 router.patch(
   '/:id/permissions',
   authenticate,
   authorize('roles.assignpermissions'),
-  validateObjectId,
+  // validateObjectId,
   validateRequest,
   roleController.assignPermissions
 );
@@ -38,7 +38,7 @@ router.patch(
   '/:id/remove-permissions',
   authenticate,
   authorize('roles.assignpermissions'),
-  validateObjectId,
+  // validateObjectId,
   validateRequest,
   roleController.removePermissions
 );
@@ -46,7 +46,7 @@ router.patch(
   '/:id',
   authenticate,
   authorize('roles.update'),
-  validateObjectId,
+  // validateObjectId,
   validateRequest,
   roleController.updateRole
 );

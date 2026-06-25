@@ -21,7 +21,7 @@ router.post(
     '/',
     authenticate,
     authorize('projects.create'),
-    createProjectValidation,
+    // createProjectValidation,
     validateRequest,
     projectController.createProject
 );
@@ -50,7 +50,7 @@ router.patch(
     '/:id',
     authenticate,
     authorize('projects.update'),
-    updateProjectValidation,
+    // updateProjectValidation,
     validateRequest,
     projectController.updateProject
 );
@@ -69,7 +69,7 @@ router.patch(
     '/:id/assign-members',
     authenticate,
     authorize('projects.assign'),
-    assignMembersValidation,
+    // assignMembersValidation,
     validateRequest,
     projectController.assignTeamMembers
 );
@@ -80,7 +80,7 @@ router.patch(
     '/:id/remove-member',
     authenticate,
     authorize('projects.assign'),
-    removeMemberValidation,
+    // removeMemberValidation,
     validateRequest,
     projectController.removeTeamMember
 );
@@ -91,7 +91,7 @@ router.patch(
     '/:id/change-manager',
     authenticate,
     authorize('projects.assign'),
-    changeProjectManagerValidation,
+    // changeProjectManagerValidation,
     validateRequest,
     projectController.changeProjectManager
 );

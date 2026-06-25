@@ -1,479 +1,327 @@
-const Project = require('./project.model');
-const User = require('../users/user.model');
-const AppError = require(
-    '../../common/AppError'
-);
-
-const HTTP_STATUS = require(
-    '../../constants/httpStatus'
-);
-const {
-    createActivityLog,
-} = require(
-    '../activity-logs/activityLog.service'
-);
+const { v4: uuidv4 } = require("uuid");
+const projectRepository = require("./project.repository");
+const userRepository = require("../users/user.repository");
+const AppError = require('../../common/AppError');
+const HTTP_STATUS = require('../../constants/httpStatus');
+const { createActivityLog, } = require('../activity-logs/activityLog.service');
 
 
-const createProject = async (
-    payload,
-    currentUser
-) => {
-    const project =
-        await Project.create({
-            ...payload,
+const createProject = async (payload, currentUser) => {
 
-            createdBy:
-                currentUser._id,
-        });
+    if (payload.projectManager) {
+
+        const manager = await userRepository.findById(payload.projectManager);
+
+        if (!manager) {
+            throw new AppError(
+                "Project manager not found",
+                HTTP_STATUS.NOT_FOUND
+            );
+        }
+    }
+
+    const project = {
+        projectId: uuidv4(),
+        name: payload.name,
+        description: payload.description || "",
+        status: payload.status || "Planning",
+        priority: payload.priority || "Medium",
+        startDate: payload.startDate || null,
+        endDate: payload.endDate || null,
+        projectManager: payload.projectManager || null,
+        teamMembers: payload.teamMembers || [],
+        isDeleted: false,
+        isActive: true,
+        createdBy: currentUser.userId,
+        updatedBy: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+    };
+
+    await projectRepository.createProject(
+        project
+    );
 
     await createActivityLog({
-        module: 'Project',
-        action: 'Create',
+        module: "Project",
+        action: "Create",
         description:
-            `${currentUser.fullName} created project ${project.name}`,
-        recordId: project._id,
-        performedBy: currentUser._id,
-        metadata: {
-            newValue: {
-                name: project.name,
-                status: project.status,
-                priority: project.priority,
-            },
-        },
+            `Project ${project.name} created by ${currentUser.firstName} ${currentUser.lastName}`,
+        performedBy:
+            currentUser.userId,
+        recordId:
+            project.projectId,
     });
 
     return project;
 };
 
 
-
-const getAllProjects = async (
-    query = {}
-) => {
-    const filter = {
-        isDeleted: false,
-    };
-
-    // Optional filters
-    if (query.status) {
-        filter.status =
-            query.status;
-    }
-
-    if (query.priority) {
-        filter.priority =
-            query.priority;
-    }
-
+const getAllProjects = async (query = {}) => {
+    let projects = [];
     if (query.projectManager) {
-        filter.projectManager =
-            query.projectManager;
+        projects = await projectRepository.findByManager(query.projectManager);
+
+    } else if (query.status) {
+        projects = await projectRepository.findByStatus(query.status);
+
+    } else {
+        projects = await projectRepository.getAllProjects();
     }
-
-    const projects =
-        await Project.find(filter)
-
-            .populate(
-                'projectManager',
-                'firstName lastName email'
-            )
-
-            .populate(
-                'teamMembers',
-                'firstName lastName email'
-            )
-
-            .populate(
-                'createdBy',
-                'firstName lastName'
-            )
-
-            .populate(
-                'updatedBy',
-                'firstName lastName'
-            )
-
-            .sort({
-                createdAt: -1,
-            });
+    projects = projects.filter(
+        (project) => !project.isDeleted
+    );
+    if (query.priority) {
+        projects = projects.filter(
+            (project) =>
+                project.priority === query.priority
+        );
+    }
 
     return projects;
 };
 
 
+const getProjectById = async (projectId) => {
 
-const getProjectById = async (
-    projectId
-) => {
-    const project =
-        await Project.findOne({
-            _id: projectId,
-            isDeleted: false,
-        })
+    const project = await projectRepository.findById(projectId);
 
-            .populate(
-                'projectManager',
-                'firstName lastName email'
-            )
-
-            .populate(
-                'teamMembers',
-                'firstName lastName email'
-            )
-
-            .populate(
-                'createdBy',
-                'firstName lastName'
-            )
-
-            .populate(
-                'updatedBy',
-                'firstName lastName'
-            );
-
-    if (!project) {
+    if (!project || project.isDeleted) {
         throw new AppError(
-            'Project not found',
+            "Project not found",
             HTTP_STATUS.NOT_FOUND
         );
+    }
+
+    if (project.projectManager) {
+        const manager = await userRepository.findById(project.projectManager);
+        project.projectManagerData = {
+            userId: manager.userId,
+            firstName: manager.firstName,
+            lastName: manager.lastName,
+            email: manager.email,
+            department: manager.department,
+            role: manager.role,
+            isActive: manager.isActive,
+        };
     }
 
     return project;
 };
 
 
+const updateProject = async (projectId, payload, currentUser) => {
 
-const updateProject = async (
-    projectId,
-    payload,
-    currentUser
-) => {
-    const project =
-        await Project.findOne({
-            _id: projectId,
-            isDeleted: false,
-        });
+    const project = await projectRepository.findById(projectId);
 
-    if (!project) {
+    if (!project || project.isDeleted
+    ) {
         throw new AppError(
-            'Project not found',
+            "Project not found",
             HTTP_STATUS.NOT_FOUND
         );
     }
-    const oldProject = {
-        name: project.name,
-        status: project.status,
-        priority: project.priority,
-        projectManager:
-            project.projectManager,
-    };
-    Object.assign(
-        project,
-        payload
+
+    const updatedProject = await projectRepository.updateProject(projectId,
+        {
+            ...payload,
+            updatedBy:
+                currentUser.userId,
+            updatedAt:
+                new Date().toISOString(),
+        }
     );
 
-    project.updatedBy =
-        currentUser._id;
-
-    await project.save();
-
     await createActivityLog({
-        module: 'Project',
-        action: 'Update',
+        module: "Project",
+        action: "Update",
         description:
-            `${currentUser.fullName} updated project ${project.name}`,
-        recordId: project._id,
-        performedBy: currentUser._id,
-        metadata: {
-            previousValue:
-                oldProject,
-
-            newValue: {
-                name: project.name,
-                status: project.status,
-                priority: project.priority,
-                projectManager:
-                    project.projectManager,
-            },
-        },
+            `Project ${updatedProject.name} updated by ${currentUser.firstName} ${currentUser.lastName}`,
+        performedBy: currentUser.userId,
+        recordId: updatedProject.projectId,
     });
 
-    return project;
+    return updatedProject;
 };
 
 
+const deleteProject = async (projectId, currentUser) => {
 
-const deleteProject = async (
-    projectId,
-    currentUser
-) => {
     const project =
-        await Project.findOne({
-            _id: projectId,
-            isDeleted: false,
-        });
+        await projectRepository.findById(projectId);
 
-    if (!project) {
+    if (!project || project.isDeleted) {
         throw new AppError(
-            'Project not found',
+            "Project not found",
             HTTP_STATUS.NOT_FOUND
         );
     }
 
-    project.isDeleted = true;
+    await projectRepository.updateProject(projectId,
+        {
+            isDeleted: true,
+            updatedBy:
+                currentUser.userId,
 
-    project.updatedBy =
-        currentUser._id;
-
-    await project.save();
-
-    await createActivityLog({
-        module: 'Project',
-
-        action: 'Delete',
-
-        description:
-            `${currentUser.fullName} deleted project ${project.name}`,
-
-        recordId:
-            project._id,
-
-        performedBy:
-            currentUser._id,
-
-        metadata: {
-            deletedProject: {
-                name: project.name,
-                status: project.status,
-                priority: project.priority,
-            },
-        },
-    });
+            updatedAt:
+                new Date().toISOString(),
+        }
+    );
 
     return true;
 };
 
-const assignTeamMembers = async (
-    projectId,
-    teamMembers,
-    currentUser
-) => {
+const assignTeamMembers = async (projectId, teamMembers, currentUser) => {
 
     const project =
-        await Project.findOne({
-            _id: projectId,
-            isDeleted: false,
-        });
+        await projectRepository.findById(projectId);
 
-    if (!project) {
+    if (!project || project.isDeleted) {
         throw new AppError(
-            'Project not found',
+            "Project not found",
             HTTP_STATUS.NOT_FOUND
         );
     }
 
-    // Remove duplicates
+    for (const userId of teamMembers) {
+
+        const user = await userRepository.findById(userId);
+
+        if (!user) {
+            throw new AppError(
+                `User ${userId} not found`,
+                HTTP_STATUS.NOT_FOUND
+            );
+        }
+    }
+
     const uniqueMembers = [
         ...new Set([
-            ...project.teamMembers.map(
-                (member) =>
-                    member.toString()
-            ),
-
+            ...(project.teamMembers || []),
             ...teamMembers,
         ]),
     ];
 
-    project.teamMembers =
-        uniqueMembers;
+    const updatedProject = await projectRepository.updateProject(
+        projectId,
+        {
+            teamMembers:
+                uniqueMembers,
 
-    project.updatedBy =
-        currentUser._id;
+            updatedBy:
+                currentUser.userId,
 
-    await project.save();
-
-    const users =
-        await User.find({
-            _id: {
-                $in: teamMembers,
-            },
-        }).select(
-            'firstName lastName'
-        );
+            updatedAt:
+                new Date().toISOString(),
+        }
+    );
 
     await createActivityLog({
-        module: 'Project',
-        action: 'Assign Members',
+        module: "Project",
+        action: "Assign Members",
         description:
-            `${currentUser.fullName} assigned team members to ${project.name}`,
-        recordId: project._id,
-        performedBy: currentUser._id,
-        metadata: {
-            newValue: {
-                members:
-                    users.map(
-                        (user) => ({
-                            id: user._id,
-                            name:
-                                `${user.firstName} ${user.lastName}`,
-                        })
-                    ),
-            },
-        },
+            `${currentUser.firstName} ${currentUser.lastName} assigned members to ${project.name}`,
+        performedBy: currentUser.userId,
+        recordId: project.projectId,
     });
 
-    return project;
+    return updatedProject;
 };
 
-const removeTeamMember = async (
-    projectId,
-    userId,
-    currentUser
-) => {
+const removeTeamMember = async (projectId, userId, currentUser) => {
 
-    const project =
-        await Project.findOne({
-            _id: projectId,
-            isDeleted: false,
-        });
+    const project = await projectRepository.findById(projectId);
 
-    if (!project) {
+    if (!project || project.isDeleted) {
         throw new AppError(
-            'Project not found',
+            "Project not found",
             HTTP_STATUS.NOT_FOUND
         );
     }
 
-    project.teamMembers =
-        project.teamMembers.filter(
-            (member) =>
-                member.toString() !==
-                userId
-        );
+    const updatedMembers =
+        (project.teamMembers || [])
+            .filter(
+                (memberId) =>
+                    memberId !== userId
+            );
 
-    project.updatedBy =
-        currentUser._id;
-
-    await project.save();
-
-    const user =
-        await User.findById(
-            userId
-        ).select(
-            'firstName lastName'
+    const updatedProject =
+        await projectRepository.updateProject(
+            projectId,
+            {
+                teamMembers: updatedMembers,
+                updatedBy: currentUser.userId,
+                updatedAt: new Date().toISOString(),
+            }
         );
 
     await createActivityLog({
-        module: 'Project',
-        action: 'Remove Member',
+        module: "Project",
+        action: "Remove Member",
         description:
-            `${currentUser.fullName} removed a team member from ${project.name}`,
-        recordId: project._id,
-        performedBy: currentUser._id,
-        metadata: {
-            removedMember: {
-                id: user._id,
-                name:
-                    `${user.firstName} ${user.lastName}`,
-            },
-        },
+            `${currentUser.firstName} ${currentUser.lastName} removed a member from ${project.name}`,
+        performedBy: currentUser.userId,
+        recordId: project.projectId,
     });
 
-    return project;
+    return updatedProject;
 };
 
-const changeProjectManager =
-    async (
-        projectId,
-        projectManager,
-        currentUser
-    ) => {
+const changeProjectManager = async (projectId, projectManager, currentUser) => {
 
-        const project =
-            await Project.findOne({
-                _id: projectId,
-                isDeleted: false,
-            });
+    const project =
+        await projectRepository.findById(projectId);
 
-        if (!project) {
-            throw new AppError(
-                'Project not found',
-                HTTP_STATUS.NOT_FOUND
-            );
-        }
+    if (!project || project.isDeleted
+    ) {
+        throw new AppError(
+            "Project not found",
+            HTTP_STATUS.NOT_FOUND
+        );
+    }
 
-        const previousManagerId =
-            project.projectManager;
-        const oldManager =
-            previousManagerId
-                ? await User.findById(
-                    previousManagerId
-                ).select(
-                    'firstName lastName'
-                )
-                : null;
-        project.projectManager =
-            projectManager;
+    const manager =
+        await userRepository.findById(projectManager);
+
+    if (!manager) {
+        throw new AppError(
+            "Project manager not found",
+            HTTP_STATUS.NOT_FOUND
+        );
+    }
+
+    const teamMembers = [
+        ...(project.teamMembers || []),
+    ];
+    if (!teamMembers.includes(projectManager)) {
+        teamMembers.push(projectManager);
+    }
+
+    const updatedProject =
+        await projectRepository.updateProject(
+            projectId,
+            {
+                projectManager,
+                teamMembers,
+                updatedBy: currentUser.userId,
+                updatedAt: new Date().toISOString(),
+            }
+        );
+
+    await createActivityLog({
+        module: "Project",
+        action: "Change Manager",
+        description:
+            `${currentUser.firstName} ${currentUser.lastName} changed manager of ${project.name}`,
+        performedBy: currentUser.userId,
+        recordId: project.projectId,
+    });
+
+    return updatedProject;
+};
 
 
-        const exists =
-            project.teamMembers.some(
-                (member) =>
-                    member.toString() ===
-                    projectManager
-            );
-
-        if (!exists) {
-            project.teamMembers.push(
-                projectManager
-            );
-        }
-
-        project.updatedBy =
-            currentUser._id;
-
-        await project.save();
-
-        const manager =
-            await User.findById(
-                projectManager
-            ).select(
-                'firstName lastName'
-            );
-        if (!manager) {
-            throw new AppError(
-                'Project manager not found',
-                HTTP_STATUS.NOT_FOUND
-            );
-        }
-
-        await createActivityLog({
-            module: 'Project',
-            action: 'Change Manager',
-            description:
-                `${currentUser.fullName} changed project manager for ${project.name}`,
-            recordId: project._id,
-            performedBy: currentUser._id,
-            metadata: {
-                previousValue: oldManager
-                    ? {
-                        managerId:
-                            oldManager._id,
-                        managerName:
-                            `${oldManager.firstName} ${oldManager.lastName}`,
-                    }
-                    : null,
-
-                newValue: {
-                    managerId:
-                        manager._id,
-                    managerName:
-                        `${manager.firstName} ${manager.lastName}`,
-                },
-            },
-        });
-        return project;
-    };
 module.exports = {
     createProject,
     getAllProjects,

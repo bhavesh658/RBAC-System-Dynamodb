@@ -58,12 +58,12 @@ const createLeadValidation = [
 
   body('assignedTo')
     .optional({ nullable: true })
-    .isMongoId()
-    .withMessage('Invalid assignedTo ID'),
+    .isUUID()
+    .withMessage("In Valid Dynamo Id"),
 
   body('department')
     .optional({ nullable: true })
-    .isMongoId()
+    .isUUID()
     .withMessage('Invalid department ID'),
 
   body('estimatedValue')
@@ -136,12 +136,12 @@ const updateLeadValidation = [
 
   body('assignedTo')
     .optional({ nullable: true })
-    .isMongoId()
+    .isUUID()
     .withMessage('Invalid assignedTo ID'),
 
   body('department')
     .optional({ nullable: true })
-    .isMongoId()
+    .isUUID()
     .withMessage('Invalid department ID'),
 
   body('estimatedValue')
@@ -178,7 +178,7 @@ const assignLeadValidation = [
     .notEmpty()
     .withMessage('assignedTo is required')
     .bail()
-    .isMongoId()
+    .isUUID()
     .withMessage('Invalid assignedTo ID'),
 ];
 

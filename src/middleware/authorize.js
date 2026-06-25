@@ -5,6 +5,7 @@ const authorize = (...requiredPermissions) => {
     return (req, res, next) => {
         const user = req.user;
 
+
         if (!user || !user.role) {
             return next(
                 new AppError(
@@ -14,10 +15,13 @@ const authorize = (...requiredPermissions) => {
             );
         }
 
-        // Super Admin bypass
-        if (user.role.name === 'Super Admin') {
+        const SUPER_ADMIN_ROLE_ID =
+            "45da3198-101f-408a-97c8-8293c1cd0c9d";
+
+        if (user.role === SUPER_ADMIN_ROLE_ID) {
             return next();
         }
+
 
         // Extract permission names from populated role.permissions
         const userPermissions = (user.role.permissions || []).map(
@@ -26,7 +30,7 @@ const authorize = (...requiredPermissions) => {
                     ? permission
                     : permission.name
         );
-        
+
         const hasPermission = requiredPermissions.some(
             (permission) =>
                 userPermissions.includes(permission)

@@ -6,7 +6,7 @@ const userService = require('./user.service');
 const createUser = asyncHandler(async (req, res) => {
   const user = await userService.createUser(
     req.body,
-    req.user._id
+    req.user
   );
 
   return sendResponse(

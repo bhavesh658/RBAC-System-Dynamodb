@@ -1,21 +1,20 @@
-const Department = require('../departments/department.model');
-const Role = require('../roles/role.model');
-const User = require('../users/user.model');
+const tokenBlacklistRepository = require('../auth/tokenBlacklist.repository');
+const userRepository = require('../users/user.repository');
 const AppError = require('../../common/AppError');
 const HTTP_STATUS = require('../../constants/httpStatus');
 const { generateAccessToken, generateRefreshToken, sendEmail } = require('./auth.utils');
 const crypto = require('crypto');
-const TokenBlacklist = require('./tokenBlacklist.model');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
 
 const loginUser = async ({
     email,
     password,
 }) => {
-    const user = await User.findOne({
-        email: email.toLowerCase(),
-    })
-        .select("+password")
+    const user =
+        await userRepository.findByEmail(
+            email.toLowerCase()
+        );
 
     if (!user) {
         throw new AppError(
@@ -32,7 +31,10 @@ const loginUser = async ({
     }
 
     const isPasswordValid =
-        await user.comparePassword(password);
+        await bcrypt.compare(
+            password,
+            user.password
+        );
 
     if (!isPasswordValid) {
         throw new AppError(
@@ -45,17 +47,11 @@ const loginUser = async ({
         generateAccessToken(user);
     const refreshToken =
         generateRefreshToken(user);
-    await User.updateOne(
-        { _id: user._id },
-        {
-            $set: {
-                lastLoginAt: new Date(),
-                refreshToken,
-            },
-        }
+    await userRepository.updateRefreshToken(
+        user.userId,
+        refreshToken
     );
-    user.password = undefined;
-
+    delete user.password;
 
     return {
         accessToken,
@@ -76,35 +72,35 @@ const logoutUser = async (
         );
 
         if (decoded?.exp) {
-            await TokenBlacklist.create({
-                token: accessToken,
-
-                expiresAt: new Date(
-                    decoded.exp * 1000
-                ),
-            });
+            await tokenBlacklistRepository.create(
+                accessToken,
+                decoded.exp
+            );
         }
     }
 
-
     if (refreshToken) {
-        await User.findOneAndUpdate(
-            { refreshToken },
-            {
-                refreshToken: null,
-            }
-        );
+
+        const user =
+            await userRepository.findByRefreshToken(
+                refreshToken
+            );
+
+        if (user) {
+            await userRepository.clearRefreshToken(
+                user.userId
+            );
+        }
     }
 
     return true;
 };
 
 
-
 const forgotPassword = async (email) => {
-    const user = await User.findOne({
-        email: email.toLowerCase(),
-    });
+    const user = await userRepository.findByEmail(
+        email.toLowerCase()
+    );
 
     if (!user) {
         throw new AppError(
@@ -125,13 +121,16 @@ const forgotPassword = async (email) => {
         .digest('hex');
 
     // Save hashed OTP and expiry (10 minutes)
-    user.resetPasswordOtp = hashedOtp;
-    user.resetPasswordOtpExpires = new Date(
-        Date.now() + 10 * 60 * 1000
+    await userRepository.updateUser(
+        user.userId,
+        {
+            resetPasswordOtp: hashedOtp,
+            resetPasswordOtpExpires:
+                new Date(
+                    Date.now() + 10 * 60 * 1000
+                ).toISOString(),
+        }
     );
-
-    // Save without validation
-    await user.save({ validateBeforeSave: false });
 
     // Send email
     await sendEmail({
@@ -156,52 +155,56 @@ const resetPassword = async (
     otp,
     newPassword
 ) => {
-    const hashedOtp = crypto
-        .createHash('sha256')
-        .update(otp)
-        .digest('hex');
+    const user =
+        await userRepository.findByEmail(
+            email.toLowerCase()
+        );
 
-    const user = await User.findOne({
-        email: email.toLowerCase(),
-        resetPasswordOtp: hashedOtp,
-        resetPasswordOtpExpires: {
-            $gt: new Date(),
-        },
-    });
-
-    if (!user) {
+    if (
+        !user ||
+        user.resetPasswordOtp !== hashedOtp ||
+        new Date(
+            user.resetPasswordOtpExpires
+        ) < new Date()
+    ) {
         throw new AppError(
-            'Invalid or expired OTP',
+            "Invalid or expired OTP",
             HTTP_STATUS.BAD_REQUEST
         );
     }
 
-    // Update password
-    user.password = newPassword;
+    const hashedPassword =
+        await bcrypt.hash(
+            newPassword,
+            10
+        );
 
-    // Clear OTP fields
-    user.resetPasswordOtp = null;
-    user.resetPasswordOtpExpires = null;
-
-    // Password hash pre-save hook automatically run hoga
-    await user.save();
+    await userRepository.updateUser(
+        user.userId,
+        {
+            password: hashedPassword,
+            resetPasswordOtp: null,
+            resetPasswordOtpExpires: null,
+        }
+    );
 
     return {
-        message: 'Password reset successfully',
+        message:
+            "Password reset successfully",
     };
 };
 
 const changePassword = async (userId, currentPassword, newPassword) => {
-    const user = await User.findById(userId).select('+password');
+    const user = await userRepository.findById(userId)
     if (!user) {
         throw new AppError('User not found', HTTP_STATUS.NOT_FOUND);
     }
-    const isMatch = await user.comparePassword(currentPassword);
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
     if (!isMatch) {
         throw new AppError('Current password is incorrect', HTTP_STATUS.BAD_REQUEST);
     }
-    user.password = newPassword;
-    await user.save();
+    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+    await userRepository.updateUser(userId, { password: hashedNewPassword });
     return {
         message: 'Password changed successfully',
     };

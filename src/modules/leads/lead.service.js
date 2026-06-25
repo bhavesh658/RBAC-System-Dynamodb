@@ -1,5 +1,9 @@
-const Lead = require('./lead.model');
-const User = require('../users/user.model');
+const { v4: uuidv4 } = require("uuid");
+
+const leadRepository = require("./lead.repository");
+const userRepository = require("../users/user.repository");
+const departmentRepository = require("../departments/department.repository");
+
 const getPagination = require('../../common/pagination');
 const AppError = require('../../common/AppError');
 const HTTP_STATUS = require('../../constants/httpStatus');
@@ -7,317 +11,264 @@ const { createActivityLog } = require('../activity-logs/activityLog.service');
 
 
 const createLead = async (payload, currentUser) => {
-  const lead = await Lead.create({
-    ...payload,
-    createdBy: currentUser._id,
-    updatedBy: currentUser._id,
-  });
 
-  await createActivityLog({
-    module: 'Lead',
-    action: 'Create',
-    description: `${currentUser.firstName} ${currentUser.lastName} created a new lead`,
-    performedBy: currentUser._id,
-    metadata: {
-      newvalue: {
-        ...payload,
-        createdBy: currentUser._id,
-        updatedBy: currentUser._id,
-      }
+  if (payload.assignedTo) {
+    const user = await userRepository.findById(payload.assignedTo);
+
+    if (!user) {
+      throw new AppError(
+        "Assigned user not found",
+        HTTP_STATUS.NOT_FOUND
+      );
     }
-  });
-
-  return getLeadById(lead._id);
-};
-
-
-const getAllLeads = async (
-  query = {},
-  currentUser
-) => {
-  const { limit, skip } = getPagination(query);
-  const filter = {};
-
-  if (currentUser.role?.name !== 'Super Admin') {
-    filter.isDeleted = false;
-    filter.isActive = true;
   }
 
-  if (query.status) filter.status = query.status;
-  if (query.priority) filter.priority = query.priority;
-  if (query.assignedTo) filter.assignedTo = query.assignedTo;
-  if (query.department) filter.department = query.department;
+  if (payload.departmentId) {
 
-  const result = await Lead.aggregate([
-    {
-      $facet: {
-        leadsData: [
-          { $match: filter }, // Jo filter user ne apply kiya
-          { $sort: { createdAt: -1 } },
-          { $skip: skip },
-          { $limit: limit },
-          {
-            $lookup: {
-              from: 'users',
-              localField: 'assignedTo',
-              foreignField: '_id',
-              as: 'assignedTo'
-            }
-          },
-          { $unwind: { path: '$assignedTo', preserveNullAndEmptyArrays: true } },
-          {
-            $lookup: {
-              from: 'departments', // Aapke departments collection ka naam
-              localField: 'department',
-              foreignField: '_id',
-              as: 'department'
-            }
-          },
-          { $unwind: { path: '$department', preserveNullAndEmptyArrays: true } },
-          {
-            $lookup: {
-              from: 'users',
-              localField: 'createdBy',
-              foreignField: '_id',
-              as: 'createdBy'
-            }
-          },
-          { $unwind: { path: '$createdBy', preserveNullAndEmptyArrays: true } },
-          {
-            $lookup: {
-              from: 'users',
-              localField: 'updatedBy',
-              foreignField: '_id',
-              as: 'updatedBy'
-            }
-          },
-          { $unwind: { path: '$updatedBy', preserveNullAndEmptyArrays: true } },
-          // Sirf zaroori fields ko select/project karne ke liye:
-          {
-            $project: {
-              'assignedTo.password': 0, // Jo fields nahi chahiye unhe hata sakte hain
-              'createdBy.password': 0,
-              'updatedBy.password': 0,
-            }
-          }
-        ],
-        // Track 2: Saare global counts ek sath calculation
-        totalCount: [{ $count: "count" }],
-        activeCount: [
-          { $match: { isDeleted: false, isActive: true } },
-          { $count: "count" }
-        ],
-        inactiveCount: [
-          { $match: { isActive: false, isDeleted: false } },
-          { $count: "count" }
-        ],
-        deletedCount: [
-          { $match: { isDeleted: true } },
-          { $count: "count" }
-        ]
-      }
+    const department = await departmentRepository.findById(payload.departmentId);
+
+    if (!department) {
+      throw new AppError(
+        "Department not found",
+        HTTP_STATUS.NOT_FOUND
+      );
     }
-  ]);
+  }
 
-  const facetResult = result[0];
-
-  return {
-    counts: {
-      totalLeads: facetResult.totalCount[0]?.count || 0,
-      activeLeads: facetResult.activeCount[0]?.count || 0,
-      inactiveLeads: facetResult.inactiveCount[0]?.count || 0,
-      deletedLeads: facetResult.deletedCount[0]?.count || 0,
-    },
-    leads: facetResult.leadsData,
+  const lead = {
+    leadId: uuidv4(),
+    firstName: payload.firstName,
+    lastName: payload.lastName || "",
+    email: payload.email || null,
+    phone: payload.phone,
+    company: payload.company || "",
+    source: payload.source || "Website",
+    status: payload.status || "New",
+    priority: payload.priority || "Medium",
+    assignedTo: payload.assignedTo || null,
+    departmentId: payload.departmentId || null,
+    estimatedValue: payload.estimatedValue || 0,
+    notes: payload.notes || "",
+    followUpDate: payload.followUpDate || null,
+    tags: payload.tags || [],
+    isDeleted: false,
+    isActive: true,
+    createdBy: currentUser.userId,
+    updatedBy: currentUser.userId,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   };
+
+  await leadRepository.createLead(
+    lead
+  );
+
+  await createActivityLog({
+    module: "Lead",
+    action: "Create",
+    description:
+      `Lead ${lead.firstName} ${lead.lastName} created by ${currentUser.firstName} ${currentUser.lastName}`,
+    performedBy: currentUser.userId,
+    recordId: lead.leadId,
+  });
+
+  return lead;
+};
+
+const getAllLeads = async (query = {}) => {
+  let leads = [];
+  if (query.assignedTo) {
+    leads = await leadRepository.findByAssignedTo(query.assignedTo);
+  } else if (
+    query.departmentId
+  ) {
+    leads = await leadRepository.findByDepartment(query.departmentId);
+  } else if (query.status) {
+    leads = await leadRepository.findByStatus(query.status);
+  } else {
+    leads = await leadRepository.getAllLeads();
+  }
+
+  leads = leads.filter((lead) => !lead.isDeleted);
+
+  if (query.priority) {
+    leads = leads.filter(
+      (lead) => lead.priority === query.priority);
+  }
+
+  return leads;
 };
 
 const getLeadById = async (leadId) => {
-  const lead = await Lead.findOne({
-    _id: leadId,
-    isDeleted: false,
-  })
-    .populate('assignedTo', 'firstName lastName email')
-    .populate('department', 'name code')
-    .populate('createdBy', 'firstName lastName')
-    .populate('updatedBy', 'firstName lastName');
 
-  if (!lead) {
+  const lead = await leadRepository.findById(leadId);
+
+  if (!lead || lead.isDeleted) {
     throw new AppError(
-      'Lead not found',
+      "Lead not found",
       HTTP_STATUS.NOT_FOUND
     );
+  }
+
+  if (lead.assignedTo) {
+
+    lead.assignedToData = await userRepository.findById(lead.assignedTo);
+  }
+
+  if (lead.departmentId) {
+
+    lead.departmentData = await departmentRepository.findById(lead.departmentId);
+  }
+  if (lead.createdBy) {
+
+    lead.createdByData = await userRepository.findById(lead.createdBy);
+  }
+
+  if (lead.updatedBy) {
+
+    lead.updatedByData = await userRepository.findById(lead.updatedBy);
   }
 
   return lead;
 };
 
+const updateLead = async (leadId, payload, currentUser) => {
 
-const updateLead = async (
-  leadId,
-  payload,
-  currentUser
-) => {
-  
-  const lead = await Lead.findOne(
-    {
-      _id: leadId,
-      isDeleted: false,
-    },
+  const lead = await leadRepository.findById(leadId);
+
+  if (!lead || lead.isDeleted) {
+    throw new AppError(
+      "Lead not found",
+      HTTP_STATUS.NOT_FOUND
+    );
+  }
+
+  const updatedLead = await leadRepository.updateLead(leadId,
     {
       ...payload,
-      updatedBy: currentUser._id,
-    },
-    {
-      new: true,
-      runValidators: true,
+      updatedBy: currentUser.userId,
+      updatedAt: new Date().toISOString(),
     }
   );
 
-  if (!lead) {
+  await createActivityLog({
+    module: "Lead",
+    action: "Update",
+    description:
+      `Lead ${lead.firstName} ${lead.lastName} updated by ${currentUser.firstName} ${currentUser.lastName}`,
+    performedBy: currentUser.userId,
+    recordId: lead.leadId,
+  });
+
+  return updatedLead;
+};
+
+const deleteLead = async (leadId, currentUser) => {
+
+  const lead = await leadRepository.findById(leadId);
+
+  if (!lead || lead.isDeleted
+  ) {
     throw new AppError(
-      'Lead not found',
+      "Lead not found",
       HTTP_STATUS.NOT_FOUND
     );
   }
 
-  Object.assign(lead, payload, { updatedBy: currentUser._id });
-  await lead.save();
-
-  await createActivityLog({
-    module: 'Lead',
-    action: 'Update',
-    description: `${currentUser.firstName} ${currentUser.lastName} updated lead "${lead._id}"`,
-    performedBy: currentUser._id,
-    recordId: lead._id,
-    metadata: {
-      newvalue: {
-        ...payload,
-        updatedBy: currentUser._id,
-      }
-    }
-  });
-
-  return getLeadById(lead._id);
-};
-
-
-const deleteLead = async (
-  leadId,
-  currentUser
-) => {
-  const lead = await Lead.findOneAndUpdate(
-    {
-      _id: leadId,
-      isDeleted: false,
-    },
+  await leadRepository.updateLead(leadId,
     {
       isDeleted: true,
-      updatedBy: currentUser._id,
-    },
-    {
-      new: true,
+      updatedBy:
+        currentUser.userId,
+      updatedAt:
+        new Date().toISOString(),
     }
   );
 
   await createActivityLog({
-    module: 'Lead',
-    action: 'Delete',
-    description: `${currentUser.firstName} ${currentUser.lastName} deleted lead "${lead.name}"`,
-    performedBy: currentUser._id,
-    recordId: lead._id,
+    module: "Lead",
+    action: "Delete",
+    description:
+      `Lead ${lead.firstName} ${lead.lastName} deleted by ${currentUser.firstName} ${currentUser.lastName}`,
+    performedBy: currentUser.userId,
+    recordId: lead.leadId,
   });
 
-  if (!lead) {
-    throw new AppError(
-      'Lead not found',
-      HTTP_STATUS.NOT_FOUND
-    );
-  }
-
-  return null;
+  return true;
 };
-
 
 const assignLead = async (leadId, assignedTo, currentUser) => {
-  const lead = await Lead.findOne({
-    _id: leadId,
-    isDeleted: false,
-  });
 
+  const lead = await leadRepository.findById(leadId);
 
-  const user = await User.findOne({
-    _id: assignedTo,
-  });
+  if (!lead || lead.isDeleted) {
+    throw new AppError(
+      "Lead not found",
+      HTTP_STATUS.NOT_FOUND
+    );
+  }
+
+  const user = await userRepository.findById(assignedTo);
 
   if (!user) {
-    throw new AppError( 
-      'Assigned user not found or inactive',
-      HTTP_STATUS.NOT_FOUND
-    );
-  }
-  if (!lead) {
     throw new AppError(
-      'Lead not found',
+      "Assigned user not found",
       HTTP_STATUS.NOT_FOUND
     );
   }
-  const oldlead ={
-    assignedTo: lead.assignedTo,
-    status: lead.status,
-  }
+
+  const updatedLead = await leadRepository.updateLead(leadId,
+    {
+      assignedTo,
+      updatedBy: currentUser.userId,
+      updatedAt: new Date().toISOString(),
+    }
+  );
+
   await createActivityLog({
-    module: 'Lead',
-    action: 'Assign',
-    description: `${currentUser.firstName} ${currentUser.lastName} assigned lead "${lead._id}" to user "${user.firstName} ${user.lastName}"`,
-    performedBy: currentUser._id,
-    metadata: {
-      oldvalue: {
-        assignedTo: oldlead.assignedTo,
-        status: oldlead.status,
-      }
-    ,
-      newvalue: {
-        assignedTo,
-        status: oldlead.status,
-      }
-    },
-    recordId: leadId,
+    module: "Lead",
+    action: "Assign",
+    description:
+      `Lead assigned to ${user.firstName} ${user.lastName}`,
+    performedBy: currentUser.userId,
+    recordId: lead.leadId,
   });
 
-  return updateLead(leadId, { assignedTo }, currentUser);
+  return updatedLead;
 };
 
+const updateLeadStatus = async (leadId, status, currentUser) => {
 
-const updateLeadStatus = async (
-  leadId,
-  status,
-  currentUser
-) => {
+  const lead = await leadRepository.findById(leadId);
 
-  await createActivityLog({
-    module: 'Lead',
-    action: 'Status Update',
-    description: `${currentUser.firstName} ${currentUser.lastName} updated status of lead "${leadId}" to "${status}"`,
-    performedBy: currentUser._id,
-    recordId: leadId,
-    metadata: {
-      newvalue: {
-        status,
-      }
-    }
-  });
+  if (!lead || lead.isDeleted) {
+    throw new AppError(
+      "Lead not found",
+      HTTP_STATUS.NOT_FOUND
+    );
+  }
 
-  return updateLead(
-    leadId,
+  const updatedLead = await leadRepository.updateLead(leadId,
     {
       status,
-      updatedBy: currentUser._id, // User who updated the status
-    },
-    currentUser
+      updatedBy: currentUser.userId,
+      updatedAt: new Date().toISOString(),
+    }
   );
-};
 
+  await createActivityLog({
+    module: "Lead",
+    action: "Status Change",
+    description:
+      `Lead status changed to ${status}`,
+    performedBy:
+      currentUser.userId,
+    recordId:
+      lead.leadId,
+  });
+
+  return updatedLead;
+};
 
 module.exports = {
   createLead,

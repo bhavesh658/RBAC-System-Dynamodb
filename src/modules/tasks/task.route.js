@@ -32,7 +32,7 @@ router.post(
   '/',
   authenticate,
   authorize('tasks.create'),
-  createTaskValidation,
+  // createTaskValidation,
   validateRequest,
   taskController.createTask
 );

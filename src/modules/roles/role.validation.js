@@ -8,12 +8,12 @@ const createRoleValidation = [
 
   body('department')
     .notEmpty()
-    .isMongoId()
-    .withMessage('Department is required'),
+    .isUUID()
+    .withMessage('Department is required or Invalid department Id'),
 
   body('permissions')
     .isArray()
-    .withMessage('Permissions must be an array'),
+    .withMessage('Permissions must be an array'),  
 ];
 
 module.exports = {

@@ -1,66 +1,73 @@
-const Attendance = require('./attendance.model');
 const AppError = require('../../common/AppError');
 const HTTP_STATUS = require('../../constants/httpStatus');
+const attendanceRepository =require("./attendance.repository");
+const { v4: uuidv4 } = require("uuid");
 
 const punchIn = async (userId) => {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today =new Date().toISOString() .split("T")[0];
 
-  let attendance = await Attendance.findOne({
-    user: userId,
-    date: today,
-  });
+  const existing =await attendanceRepository.findTodayAttendance( userId, today );
 
-  if (attendance && attendance.punchIn) {
+  if ( existing && existing.punchIn) {
     throw new AppError(
-      'Already punched in for today',
+      "Already punched in for today",
       HTTP_STATUS.BAD_REQUEST
     );
   }
 
-  if (!attendance) {
-    attendance = await Attendance.create({
-      user: userId,
-      date: today,
-      punchIn: new Date(),
-    });
-  } else {
-    attendance.punchIn = new Date();
-    await attendance.save();
-  }
+  const attendance = {
+    attendanceId: uuidv4(),
+    userId,
+    date: today,
+    punchIn:new Date().toISOString(),
+    punchOut: null,
+    totalHours: 0,
+    createdAt:new Date().toISOString(),
+    updatedAt:new Date().toISOString(),
+  };
 
-  return attendance;
+  return await attendanceRepository.createAttendance(
+    attendance
+  );
 };
 
 
 const punchOut = async (userId) => {
- 
-  const attendance = await Attendance.findOne({
-    user: userId,
-    punchIn: { $exists: true },
-    punchOut: { $exists: false },
-  }).sort({ punchIn: -1 }); // Sabse naya open record pehle laayein
+  const today =new Date().toISOString().split("T")[0];
+
+  const attendance =await attendanceRepository.findTodayAttendance( userId,today);
 
   if (!attendance) {
     throw new AppError(
-      'No active punch-in session found. You may have already punched out or forgot to punch in.',
+      "No active punch-in session found",
       HTTP_STATUS.BAD_REQUEST
     );
   }
 
-  attendance.punchOut = new Date();
+  if (attendance.punchOut) {
+    throw new AppError(
+      "Already punched out",
+      HTTP_STATUS.BAD_REQUEST
+    );
+  }
 
-  const diff =
-    (attendance.punchOut - attendance.punchIn) /
-    (1000 * 60 * 60);
+  const punchOutTime =new Date();
 
-  attendance.totalHours = parseFloat(diff.toFixed(2));
+  const diff =(punchOutTime -new Date(attendance.punchIn )) /(1000 * 60 * 60);
 
-  await attendance.save();
-
-  return attendance;
+  return await attendanceRepository.updateAttendance(attendance.attendanceId,
+    {
+      punchOut:
+        punchOutTime.toISOString(),
+      totalHours:
+        parseFloat(
+          diff.toFixed(2)
+        ),
+      updatedAt:
+        new Date().toISOString(),
+    }
+  );
 };
-
 module.exports = {
   punchIn,
   punchOut
