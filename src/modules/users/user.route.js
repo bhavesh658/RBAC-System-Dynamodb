@@ -28,7 +28,7 @@ router.get(
   '/:id',
   authenticate,
   authorize('users.read'),
-  // validateObjectId,
+  validateObjectId,
   userController.getUserById
 );
 
@@ -36,7 +36,7 @@ router.patch(
   '/:id',
   authenticate,
   authorize('users.update'),
-  // validateObjectId,
+  validateObjectId,
   validateRequest,
   userController.updateUser
 );
@@ -45,7 +45,7 @@ router.patch(
   '/:id/toggle-status',
   authenticate,
   authorize('users.update'),
-  // validateObjectId,
+  validateObjectId,
   userController.toggleUserStatus
 );
 

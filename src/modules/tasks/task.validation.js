@@ -21,19 +21,16 @@ const createTaskValidation = [
     .optional()
     .trim(),
 
-  body('project')
+  body('projectId')
     .notEmpty()
-    .withMessage(
-      'Project is required'
-    )
-    .isMongoId()
+    .isUUID()
     .withMessage(
       'Invalid project ID'
     ),
 
   body('assignedTo')
     .optional()
-    .isMongoId()
+    .isUUID()
     .withMessage(
       'Invalid user ID'
     ),
@@ -87,14 +84,14 @@ const updateTaskValidation = [
 
   body('project')
     .optional()
-    .isMongoId()
+    .isUUID()
     .withMessage(
       'Invalid project ID'
     ),
 
   body('assignedTo')
     .optional()
-    .isMongoId()
+    .isUUID()
     .withMessage(
       'Invalid user ID'
     ),
@@ -143,7 +140,7 @@ const assignTaskValidation = [
     .withMessage(
       'Assigned user is required'
     )
-    .isMongoId()
+    .isUUID()
     .withMessage(
       'Invalid user ID'
     ),

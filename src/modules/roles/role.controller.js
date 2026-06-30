@@ -1,7 +1,6 @@
 const asyncHandler = require('../../common/asyncHandler');
 const sendResponse = require('../../common/apiResponse');
 const HTTP_STATUS = require('../../constants/httpStatus');
-
 const roleService = require('./role.service');
 
 const createRole = asyncHandler(async (req, res) => {

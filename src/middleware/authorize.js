@@ -15,8 +15,7 @@ const authorize = (...requiredPermissions) => {
             );
         }
 
-        const SUPER_ADMIN_ROLE_ID =
-            "45da3198-101f-408a-97c8-8293c1cd0c9d";
+        const SUPER_ADMIN_ROLE_ID ="45da3198-101f-408a-97c8-8293c1cd0c9d";
 
         if (user.role === SUPER_ADMIN_ROLE_ID) {
             return next();

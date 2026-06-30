@@ -1,18 +1,8 @@
-const {
-  PutCommand,
-  GetCommand,
-} = require("@aws-sdk/lib-dynamodb");
-
-const {
-  docClient,
-} = require("../../config/dynamodb");
-
+const { PutCommand, GetCommand } = require("@aws-sdk/lib-dynamodb");
+const { docClient, } = require("../../config/dynamodb");
 const TABLE_NAME = "TokenBlacklist";
 
-const create = async (
-  token,
-  expiresAt
-) => {
+const create = async (token, expiresAt) => {
   await docClient.send(
     new PutCommand({
       TableName: TABLE_NAME,
@@ -26,9 +16,7 @@ const create = async (
   );
 };
 
-const findByToken = async (
-  token
-) => {
+const findByToken = async (token) => {
   const result =
     await docClient.send(
       new GetCommand({

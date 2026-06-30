@@ -1,11 +1,14 @@
-const { QueryCommand, PutCommand, UpdateCommand, ScanCommand,
-    GetCommand, } =
-    require("@aws-sdk/lib-dynamodb");
+const { QueryCommand,
+    PutCommand,
+    UpdateCommand,
+    ScanCommand, GetCommand, } = require("@aws-sdk/lib-dynamodb");
 
-const { docClient } =
-    require("../../config/dynamodb");
-
+const { docClient } =require("../../config/dynamodb");
 const TABLE_NAME = "Attendance";
+
+
+
+
 
 const findTodayAttendance = async (
     userId,
@@ -90,6 +93,7 @@ const updateAttendance = async (
 
     return result.Attributes;
 };
+
 const findByDate = async (date) => {
 
     const result =
@@ -114,8 +118,8 @@ const findByDate = async (date) => {
     return result.Items || [];
 };
 
-const getAllAttendances =
-    async () => {
+
+const getAllAttendances = async () => {
 
         const result =
             await docClient.send(
@@ -126,6 +130,7 @@ const getAllAttendances =
 
         return result.Items || [];
     };
+
 const findByUserId = async (
     userId
 ) => {
@@ -149,6 +154,7 @@ const findByUserId = async (
 
     return result.Items || [];
 };
+
 module.exports = {
     findTodayAttendance,
     createAttendance,

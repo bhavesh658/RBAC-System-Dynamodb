@@ -1,7 +1,6 @@
 const asyncHandler = require('../../common/asyncHandler');
 const sendResponse = require('../../common/apiResponse');
 const HTTP_STATUS = require('../../constants/httpStatus');
-
 const reportService = require('./report.service');
 
 const getDailyReport = asyncHandler(async (req, res) => {

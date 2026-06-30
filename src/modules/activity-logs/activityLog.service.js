@@ -2,15 +2,8 @@ const { v4: uuidv4 } = require("uuid");
 const activityLogRepository = require("./activityLog.repository");
 const getPagination = require("../../common/pagination");
 
-const createActivityLog = async ({
-    module,
-    action,
-    description,
-    recordId = null,
-    performedBy,
-    metadata = {},
+const createActivityLog = async ({ module, action, description, recordId = null, performedBy, metadata = {},
 }) => {
-
     const log = {
         logId: uuidv4(),
         module,
@@ -19,43 +12,31 @@ const createActivityLog = async ({
         recordId,
         performedBy,
         metadata,
-        createdAt:
-            new Date().toISOString(),
+        createdAt:new Date().toISOString(),
     };
 
     return await activityLogRepository.create(log);
 };
 
-const getAllActivityLogs =
-    async (query = {}) => {
+const getAllActivityLogs = async (query = {}) => {
 
         let logs;
 
         if (query.module) {
-            logs =
-                await activityLogRepository.getByModule(
+            logs =await activityLogRepository.getByModule(
                     query.module
                 );
         } else {
-            logs =
-                await activityLogRepository.getAll();
+            logs =await activityLogRepository.getAll();
         }
 
         logs.sort(
-            (a, b) =>
-                new Date(b.createdAt) -
-                new Date(a.createdAt)
+            (a, b) =>new Date(b.createdAt) -new Date(a.createdAt)
         );
 
-        const {
-            limit,
-            skip,
-        } = getPagination(query);
+        const {limit,skip,} = getPagination(query);
 
-        return logs.slice(
-            skip,
-            skip + limit
-        );
+        return logs.slice(skip,skip + limit );
     };
 
 module.exports = {

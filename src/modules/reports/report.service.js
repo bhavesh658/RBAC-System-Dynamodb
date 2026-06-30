@@ -1,15 +1,6 @@
-const attendanceRepository = require(
-  '../attendance/attendance.repository'
-);
-
-const userRepository = require(
-  '../users/user.repository'
-);
-
-const departmentRepository = require(
-  '../departments/department.repository'
-);
-
+const attendanceRepository = require('../attendance/attendance.repository');
+const userRepository = require('../users/user.repository');
+const departmentRepository = require('../departments/department.repository');
 
 
 const getDailyReport = async (

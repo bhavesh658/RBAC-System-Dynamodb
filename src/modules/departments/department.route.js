@@ -1,10 +1,7 @@
 const express = require('express');
-
 const router = express.Router();
-
 const departmentController = require('./department.controller');
 const { createDepartmentValidation } = require('./department.validation');
-
 const validateRequest = require('../../middleware/validateRequest');
 const authenticate = require('../../middleware/authenticate');
 const authorize = require('../../middleware/authorize');
@@ -32,7 +29,7 @@ router.get(
   '/:id',
   authenticate,
   authorize('departments.read'),
-  // validateObjectId,
+  validateObjectId,
   departmentController.getDepartmentById
 );
 
@@ -40,7 +37,7 @@ router.patch(
   '/:id',
   authenticate,
   authorize('departments.update'),
-  // validateObjectId,
+  validateObjectId,
   validateRequest,
   departmentController.updateDepartment
 );
@@ -49,7 +46,7 @@ router.patch(
   '/:id/assign-head',
   authenticate,
   authorize('departments.update'),
-  // validateObjectId,
+  validateObjectId,
   validateRequest,
   departmentController.assignHead
 );

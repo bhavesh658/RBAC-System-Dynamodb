@@ -1,6 +1,4 @@
-const {
-    body,
-} = require('express-validator');
+const {body,} = require('express-validator');
 
 const {
     PROJECT_STATUSES,
@@ -50,7 +48,7 @@ const createProjectValidation = [
 
     body('projectManager')
         .optional()
-        .isMongoId()
+        .isUUID()
         .withMessage(
             'Invalid project manager ID'
         ),
@@ -64,7 +62,7 @@ const createProjectValidation = [
 
     body('teamMembers.*')
         .optional()
-        .isMongoId()
+        .isUUID()
         .withMessage(
             'Invalid team member ID'
         ),
@@ -118,7 +116,7 @@ const updateProjectValidation = [
 
     body('projectManager')
         .optional()
-        .isMongoId()
+        .isUUID()
         .withMessage(
             'Invalid project manager ID'
         ),
@@ -132,7 +130,7 @@ const updateProjectValidation = [
 
     body('teamMembers.*')
         .optional()
-        .isMongoId()
+        .isUUID()
         .withMessage(
             'Invalid team member ID'
         ),
@@ -155,7 +153,7 @@ const assignMembersValidation = [
         ),
 
     body('teamMembers.*')
-        .isMongoId()
+        .isUUID()
         .withMessage(
             'Invalid team member ID'
         ),
@@ -168,7 +166,7 @@ const removeMemberValidation = [
             'User ID is required'
         )
 
-        .isMongoId()
+        .isUUID()
         .withMessage(
             'Invalid user ID'
         ),
@@ -181,7 +179,7 @@ const changeProjectManagerValidation = [
             'Project manager ID is required'
         )
 
-        .isMongoId()
+        .isUUID()
         .withMessage(
             'Invalid project manager ID'
         ),

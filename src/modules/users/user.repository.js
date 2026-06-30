@@ -7,11 +7,8 @@ const {
     ScanCommand,
 } = require("@aws-sdk/lib-dynamodb");
 
-const {
-    docClient,
-} = require("../../config/dynamodb");
+const {docClient,}= require("../../config/dynamodb");
 const { createActivityLog } = require("../activity-logs/activityLog.service");
-
 const TABLE_NAME = "Users";
 
 const findByEmail = async (email) => {
@@ -25,7 +22,6 @@ const findByEmail = async (email) => {
     }));
     return user.Items?.[0] || null
 };
-
 
 
 const findById = async (userId) => {

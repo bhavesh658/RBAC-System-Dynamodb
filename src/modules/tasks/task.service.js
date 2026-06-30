@@ -1,11 +1,9 @@
-
 const AppError = require('../../common/AppError');
 const HTTP_STATUS = require('../../constants/httpStatus');
 const taskRepository = require('./task.repository');
 const projectRepository = require('../projects/project.repository');
 const userRepository = require('../users/user.repository');
 const { createActivityLog, } = require('../activity-logs/activityLog.service');
-
 const { v4: uuidv4 } = require("uuid");
 
 const createTask = async (
@@ -321,7 +319,6 @@ const assignTask = async (
 };
 
 
-
 const changeTaskStatus = async (
   taskId,
   status,
@@ -368,6 +365,7 @@ const changeTaskStatus = async (
 
   return updatedTask;
 };
+
 module.exports = {
   createTask,
   getAllTasks,

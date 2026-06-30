@@ -1,5 +1,4 @@
 const express = require('express');
-
 const authRoutes = require('../modules/auth/auth.route');
 const departmentRoutes = require('../modules/departments/department.route');
 const roleRoutes = require('../modules/roles/role.route');
@@ -11,7 +10,6 @@ const leadRoutes = require('../modules/leads/lead.route');
 const projectRoutes = require('../modules/projects/project.route');
 const TaskRoutes = require("../modules/tasks/task.route")
 const activityLogRoutes = require('../modules/activity-logs/activityLog.route');
-
 const router = express.Router();
 
 

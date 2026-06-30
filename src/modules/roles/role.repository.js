@@ -4,9 +4,7 @@ const {
     ScanCommand,
     UpdateCommand,
 } = require("@aws-sdk/lib-dynamodb");
-
 const { docClient } = require("../../config/dynamodb");
-
 const TABLE_NAME = "Roles";
 
 const createRole = async (role) => {

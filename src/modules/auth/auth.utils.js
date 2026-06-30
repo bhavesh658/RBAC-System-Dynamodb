@@ -60,7 +60,7 @@ const generateAccessToken = (user) => {
 const generateRefreshToken = (
   user
 ) => {
-  
+
   if (!user || !user.userId) {
     throw new Error('Invalid user object for refresh token generation');
   }

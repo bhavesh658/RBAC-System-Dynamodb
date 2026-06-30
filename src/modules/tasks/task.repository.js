@@ -5,9 +5,7 @@ const {
     QueryCommand,
     UpdateCommand,
 } = require("@aws-sdk/lib-dynamodb");
-
 const { docClient } = require("../../config/dynamodb");
-
 const TABLE_NAME = "Tasks";
 
 const createTask = async (task) => {

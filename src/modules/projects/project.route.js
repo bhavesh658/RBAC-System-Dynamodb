@@ -1,12 +1,10 @@
 const express = require('express');
 const router = express.Router();
-
 const authenticate = require('../../middleware/authenticate');
 const authorize = require('../../middleware/authorize');
 const validateRequest = require('../../middleware/validateRequest');
-
 const projectController = require('./project.controller');
-
+const validateObjectId = require('../../middleware/validateObjectId')
 const {
     createProjectValidation,
     updateProjectValidation,
@@ -21,7 +19,7 @@ router.post(
     '/',
     authenticate,
     authorize('projects.create'),
-    // createProjectValidation,
+    createProjectValidation,
     validateRequest,
     projectController.createProject
 );
@@ -50,8 +48,9 @@ router.patch(
     '/:id',
     authenticate,
     authorize('projects.update'),
-    // updateProjectValidation,
+    updateProjectValidation,
     validateRequest,
+    validateObjectId,
     projectController.updateProject
 );
 
@@ -61,6 +60,7 @@ router.delete(
     '/:id',
     authenticate,
     authorize('projects.delete'),
+    validateObjectId,
     projectController.deleteProject
 );
 
@@ -69,8 +69,9 @@ router.patch(
     '/:id/assign-members',
     authenticate,
     authorize('projects.assign'),
-    // assignMembersValidation,
+    assignMembersValidation,
     validateRequest,
+    validateObjectId,
     projectController.assignTeamMembers
 );
 
@@ -80,8 +81,9 @@ router.patch(
     '/:id/remove-member',
     authenticate,
     authorize('projects.assign'),
-    // removeMemberValidation,
+    removeMemberValidation,
     validateRequest,
+    validateObjectId,
     projectController.removeTeamMember
 );
 
@@ -91,8 +93,9 @@ router.patch(
     '/:id/change-manager',
     authenticate,
     authorize('projects.assign'),
-    // changeProjectManagerValidation,
+    changeProjectManagerValidation,
     validateRequest,
+    validateObjectId,
     projectController.changeProjectManager
 );
 

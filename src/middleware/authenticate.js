@@ -1,8 +1,6 @@
-const jwt = require('jsonwebtoken');
-
+const jwt = require('jsonwebtoken')
 const UserRepository = require('../modules/users/user.repository');
 const tokenBlacklistRepository = require("../modules/auth/tokenBlacklist.repository");
-
 const AppError = require('../common/AppError');
 const HTTP_STATUS = require('../constants/httpStatus');
 const asyncHandler = require('../common/asyncHandler');
@@ -12,10 +10,7 @@ const authenticate = asyncHandler(async (req, res, next) => {
   let token = null;
 
   // Get token from Authorization header
-  if (
-    authHeader &&
-    authHeader.startsWith('Bearer ')
-  ) {
+  if (authHeader &&authHeader.startsWith('Bearer ')) {
     token = authHeader.split(' ')[1];
   }
 
@@ -47,8 +42,6 @@ const authenticate = asyncHandler(async (req, res, next) => {
   // Verify token
   let decoded;
 
-
-
   try {
     decoded = jwt.verify(
       token,
@@ -64,12 +57,7 @@ const authenticate = asyncHandler(async (req, res, next) => {
   const user = await UserRepository.findById(
     decoded.sub
   );
-  // const user = await User.findById(decoded.sub)
-  // .populate('department')
-  // .populate({
-  //     path: 'role',
-  //     select: 'name permissions'
-  // });
+ 
 
   if (!user) {
     throw new AppError(
@@ -84,10 +72,7 @@ const authenticate = asyncHandler(async (req, res, next) => {
       HTTP_STATUS.FORBIDDEN
     );
   }
-
-  // Attach authenticated user to request
   req.user = user;
-
 
   next();
 });

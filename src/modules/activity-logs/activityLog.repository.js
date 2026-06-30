@@ -1,9 +1,6 @@
 const { v4: uuidv4 } = require("uuid");
-
 const { PutCommand, ScanCommand, QueryCommand, } = require("@aws-sdk/lib-dynamodb");
-
 const { docClient, } = require("../../config/dynamodb");
-
 const TABLE_NAME = "ActivityLogs";
 
 const create = async (log) => {

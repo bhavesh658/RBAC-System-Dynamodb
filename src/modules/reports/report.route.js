@@ -1,7 +1,5 @@
   const express = require('express');
-
   const router = express.Router();
-
   const reportController = require('./report.controller');
   const validateRequest = require('../../middleware/validateRequest');
   const validateObjectId = require('../../middleware/validateObjectId');
@@ -30,7 +28,7 @@
     '/department/:departmentId',
     authenticate,
     authorize('reports.read'),
-    // validateObjectId,
+    validateObjectId,
     reportController.getDepartmentReport
   );
 
